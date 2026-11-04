@@ -1,5 +1,8 @@
 import type {
   Chapter,
+  FocusRecord,
+  MockExam,
+  StudySession,
   ChapterStatus,
   Priority,
   RevisionTask,
@@ -152,4 +155,89 @@ export const PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, lo
 
 export function sessionStatusLabel(status: SessionStatus): string {
   return { upcoming: 'Upcoming', in_progress: 'In progress', completed: 'Completed', missed: 'Missed' }[status];
+}
+
+/** Aggregates focus records into focused minutes per ISO date. */
+export function buildStudyLog(focusLog: FocusRecord[]): StudyLog {
+  const log: StudyLog = {};
+  for (const record of focusLog) log[record.date] = (log[record.date] ?? 0) + record.minutes;
+  return log;
+}
+
+/** Upcoming sessions on a past date are shown as missed. */
+export function effectiveSessionStatus(session: StudySession, today: string): SessionStatus {
+  if (session.status === 'upcoming' && session.date < today) return 'missed';
+  return session.status;
+}
+
+export type RangeKey = '7d' | '30d' | '90d' | 'all';
+
+export const RANGE_OPTIONS: Array<{ id: RangeKey; label: string }> = [
+  { id: '7d', label: 'Last 7 days' },
+  { id: '30d', label: 'Last 30 days' },
+  { id: '90d', label: 'Last 90 days' },
+  { id: 'all', label: 'All time' },
+];
+
+/** Inclusive list of ISO dates ending today for a range. "All time" starts at the first record. */
+export function rangeDates(range: RangeKey, studyLog: StudyLog, today: string): string[] {
+  const days = { '7d': 7, '30d': 30, '90d': 90, all: 0 }[range];
+  if (days > 0) return Array.from({ length: days }, (_, i) => addDaysISO(today, i - (days - 1)));
+  const first = Object.keys(studyLog).sort()[0] ?? today;
+  const span = Math.max(1, daysUntil(today, first) * -1 + 1);
+  return Array.from({ length: span }, (_, i) => addDaysISO(today, i - (span - 1)));
+}
+
+export function minutesBySubject(focusLog: FocusRecord[], dates: Set<string>): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const r of focusLog) if (dates.has(r.date)) result[r.subjectId] = (result[r.subjectId] ?? 0) + r.minutes;
+  return result;
+}
+
+/** Share of days in the window that met at least 50% of the daily target, scaled to 0-100. */
+export function consistencyScore(studyLog: StudyLog, dates: string[], targetMinutes: number): number {
+  if (dates.length === 0 || targetMinutes <= 0) return 0;
+  const score = dates.reduce((sum, d) => sum + Math.min(1, (studyLog[d] ?? 0) / targetMinutes), 0);
+  return (score / dates.length) * 100;
+}
+
+export function plannedMinutesByDate(sessions: StudySession[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const s of sessions) result[s.date] = (result[s.date] ?? 0) + s.durationMinutes;
+  return result;
+}
+
+export function mockPercent(exam: MockExam): number {
+  return exam.maxScore === 0 ? 0 : (exam.score / exam.maxScore) * 100;
+}
+
+/** Latest mock percentage and the change vs the previous attempt for each subject. */
+export function subjectMockSummary(exams: MockExam[], subjectId: string) {
+  const own = exams.filter((e) => e.subjectId === subjectId).sort((a, b) => a.date.localeCompare(b.date));
+  const latest = own[own.length - 1];
+  const previous = own[own.length - 2];
+  return {
+    count: own.length,
+    latest: latest ? mockPercent(latest) : null,
+    delta: latest && previous ? mockPercent(latest) - mockPercent(previous) : null,
+  };
+}
+
+export interface WeakSubject {
+  subject: Subject;
+  accuracy: number | null;
+  completionPct: number;
+  weakChapters: number;
+}
+
+export function weakSubjects(subjects: Subject[], chapters: Chapter[], revisions: RevisionTask[]): WeakSubject[] {
+  return subjects
+    .map((subject) => {
+      const stats = subjectStats(subject.id, chapters, revisions);
+      const own = chapters.filter((c) => c.subjectId === subject.id && c.status !== 'not_started');
+      const weakChapters = own.filter((c) => c.confidence <= 2 || (chapterAccuracy(c) ?? 100) < 50).length;
+      return { subject, accuracy: stats.accuracy, completionPct: stats.completionPct, weakChapters };
+    })
+    .filter((w) => w.accuracy !== null && w.accuracy < 60)
+    .sort((a, b) => (a.accuracy ?? 0) - (b.accuracy ?? 0));
 }

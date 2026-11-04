@@ -24,7 +24,10 @@ export function StudyActivityChart({ data, targetMinutes, today }: StudyActivity
     isFuture: day.isFuture,
     isToday: day.date === today,
   }));
-  const maxValue = Math.max(targetMinutes * 1.25, ...data.map((d) => d.minutes));
+  // Round the axis up to whole 2-hour steps so ticks read 0h, 2h, 4h… instead of fractional values.
+  const step = 120;
+  const maxValue = Math.ceil(Math.max(targetMinutes * 1.15, ...data.map((d) => d.minutes)) / step) * step;
+  const ticks = Array.from({ length: maxValue / step + 1 }, (_, i) => i * step);
 
   return (
     <div className="h-[220px] w-full">
@@ -37,6 +40,7 @@ export function StudyActivityChart({ data, targetMinutes, today }: StudyActivity
             axisLine={false}
             tickLine={false}
             domain={[0, maxValue]}
+            ticks={ticks}
             tickFormatter={(v: number) => `${Math.round(v / 60)}h`}
             width={40}
           />

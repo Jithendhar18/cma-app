@@ -60,3 +60,31 @@
     scrollbar-width: none;
   }
 }
+
+@media print {
+  :root,
+  .dark,
+  .light {
+    color-scheme: light;
+    --canvas: 255 255 255;
+    --card: 255 255 255;
+    --elevated: 244 245 250;
+    --text: 23 26 38;
+    --text-2: 80 88 104;
+    --text-3: 110 118 134;
+    --line: 220 223 230;
+    --line-alpha: 1;
+  }
+  aside,
+  header.sticky,
+  nav[aria-label='Primary'],
+  .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  * {
+    box-shadow: none !important;
+  }
+}

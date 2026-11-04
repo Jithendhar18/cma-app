@@ -2,34 +2,49 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { createSeedData } from '@/data/seed';
 import { addDaysISO, todayISO } from '@/lib/dates';
+import { parseSnapshot } from '@/lib/snapshot';
 import type {
   Chapter,
   ChapterStatus,
+  FocusRecord,
+  MockExam,
+  PracticeRecord,
   RevisionTask,
   SessionStatus,
   Settings,
   StudyDataSnapshot,
+  StudySession,
 } from '@/types/study';
 
 export type ChapterPatch = Partial<Pick<Chapter, 'status' | 'confidence' | 'notes'>>;
+export type NewSession = Omit<StudySession, 'id'>;
 
 interface StudyActions {
   updateSettings: (patch: Partial<Settings>) => void;
   updateChapter: (chapterId: string, patch: ChapterPatch) => void;
-  logStudyTime: (chapterId: string, minutes: number) => void;
   logPractice: (chapterId: string, questions: number, correct: number) => void;
+  addSession: (session: NewSession) => string;
+  updateSession: (sessionId: string, patch: Partial<NewSession>) => void;
+  deleteSession: (sessionId: string) => void;
+  setSessionStatus: (sessionId: string, status: SessionStatus) => void;
+  /** Idempotent: a record id that already exists is ignored. */
+  addFocusRecord: (record: FocusRecord) => void;
+  removeFocusRecord: (recordId: string) => void;
   completeRevision: (revisionId: string) => void;
   rescheduleRevision: (revisionId: string, dueDate: string) => void;
-  setSessionStatus: (sessionId: string, status: SessionStatus) => void;
+  addMockExam: (exam: Omit<MockExam, 'id'>) => void;
+  deleteMockExam: (examId: string) => void;
   importData: (snapshot: StudyDataSnapshot) => void;
   resetDemoData: () => void;
 }
 
 export type StudyStore = StudyDataSnapshot & StudyActions;
 
-const CHAPTER_DONE_STATUSES: ChapterStatus[] = ['completed', 'revision_due', 'exam_ready'];
+export const CHAPTER_DONE_STATUSES: ChapterStatus[] = ['completed', 'revision_due', 'exam_ready'];
 
-function nextRevisionAfter(task: RevisionTask, settings: Settings): Omit<RevisionTask, 'id' | 'chapterId' | 'priority'> | null {
+type NextRevision = Omit<RevisionTask, 'id' | 'chapterId' | 'priority'>;
+
+function nextRevisionAfter(task: RevisionTask, settings: Settings): NextRevision | null {
   const completed = task.completedOn ?? todayISO();
   switch (task.revisionNumber) {
     case 1:
@@ -47,8 +62,15 @@ function withChapter(chapters: Chapter[], chapterId: string, change: (chapter: C
   return chapters.map((chapter) => (chapter.id === chapterId ? change(chapter) : chapter));
 }
 
-function addMinutes(log: StudyDataSnapshot['studyLog'], date: string, minutes: number) {
-  return { ...log, [date]: (log[date] ?? 0) + minutes };
+const newId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
+
+function applyRecord(chapters: Chapter[], record: FocusRecord, direction: 1 | -1): Chapter[] {
+  return withChapter(chapters, record.chapterId, (c) => ({
+    ...c,
+    actualHours: Math.max(0, c.actualHours + (direction * record.minutes) / 60),
+    lastStudied: direction === 1 ? (c.lastStudied && c.lastStudied > record.date ? c.lastStudied : record.date) : c.lastStudied,
+    status: direction === 1 && c.status === 'not_started' ? 'learning' : c.status,
+  }));
 }
 
 const createInitialState = (): StudyDataSnapshot => createSeedData(todayISO());
@@ -58,8 +80,7 @@ export const useStudyStore = create<StudyStore>()(
     (set) => ({
       ...createInitialState(),
 
-      updateSettings: (patch) =>
-        set((state) => ({ settings: { ...state.settings, ...patch } })),
+      updateSettings: (patch) => set((state) => ({ settings: { ...state.settings, ...patch } })),
 
       updateChapter: (chapterId, patch) =>
         set((state) => {
@@ -77,7 +98,7 @@ export const useStudyStore = create<StudyStore>()(
               ? [
                   ...state.revisions,
                   {
-                    id: `rev-${crypto.randomUUID()}`,
+                    id: newId('rev'),
                     chapterId,
                     revisionNumber: 1 as const,
                     dueDate: addDaysISO(todayISO(), 1),
@@ -88,34 +109,118 @@ export const useStudyStore = create<StudyStore>()(
               : state.revisions;
 
           return {
-            chapters: withChapter(state.chapters, chapterId, (c) => ({ ...c, ...patch })),
-            revisions,
-          };
-        }),
-
-      logStudyTime: (chapterId, minutes) =>
-        set((state) => {
-          const today = todayISO();
-          return {
             chapters: withChapter(state.chapters, chapterId, (c) => ({
               ...c,
-              actualHours: c.actualHours + minutes / 60,
-              lastStudied: today,
-              status: c.status === 'not_started' ? 'learning' : c.status,
+              ...patch,
+              completedOn: becameDone ? todayISO() : c.completedOn ?? null,
             })),
-            studyLog: addMinutes(state.studyLog, today, minutes),
+            revisions,
           };
         }),
 
       logPractice: (chapterId, questions, correct) =>
         set((state) => ({
+          practiceLog: [
+            ...state.practiceLog,
+            {
+              id: newId('pr'),
+              date: todayISO(),
+              chapterId,
+              subjectId: state.chapters.find((c) => c.id === chapterId)?.subjectId ?? '',
+              questions,
+              correct: Math.min(correct, questions),
+            } satisfies PracticeRecord,
+          ],
           chapters: withChapter(state.chapters, chapterId, (c) => ({
             ...c,
             questionsPracticed: c.questionsPracticed + questions,
-            correctAnswers: c.correctAnswers + correct,
+            correctAnswers: c.correctAnswers + Math.min(correct, questions),
             lastStudied: todayISO(),
+            status: c.status === 'not_started' ? 'learning' : c.status,
           })),
         })),
+
+      addSession: (session) => {
+        const id = newId('s');
+        set((state) => ({ sessions: [...state.sessions, { ...session, id }] }));
+        return id;
+      },
+
+      updateSession: (sessionId, patch) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) => (s.id === sessionId ? { ...s, ...patch } : s)),
+        })),
+
+      deleteSession: (sessionId) =>
+        set((state) => ({
+          sessions: state.sessions.filter((s) => s.id !== sessionId),
+          // Keep logged time, but detach it from the removed plan.
+          focusLog: state.focusLog.map((r) => (r.sessionId === sessionId ? { ...r, sessionId: null } : r)),
+        })),
+
+      setSessionStatus: (sessionId, status) =>
+        set((state) => {
+          const session = state.sessions.find((s) => s.id === sessionId);
+          if (!session || session.status === status) return state;
+
+          const sessions = state.sessions.map((s) => (s.id === sessionId ? { ...s, status } : s));
+          const plannerId = `plan-${sessionId}`;
+          const logged = state.focusLog.some((r) => r.sessionId === sessionId);
+
+          if (status === 'completed' && !logged) {
+            const record: FocusRecord = {
+              id: plannerId,
+              date: session.date,
+              subjectId: session.subjectId,
+              chapterId: session.chapterId,
+              minutes: session.durationMinutes,
+              mode: 'planner',
+              notes: session.notes,
+              sessionId,
+            };
+            return {
+              sessions,
+              focusLog: [...state.focusLog, record],
+              chapters: applyRecord(state.chapters, record, 1),
+            };
+          }
+
+          if (session.status === 'completed' && status !== 'completed') {
+            // Un-completing only removes time that the planner itself credited.
+            const planned = state.focusLog.find((r) => r.id === plannerId);
+            if (planned) {
+              return {
+                sessions,
+                focusLog: state.focusLog.filter((r) => r.id !== plannerId),
+                chapters: applyRecord(state.chapters, planned, -1),
+              };
+            }
+          }
+          return { sessions };
+        }),
+
+      addFocusRecord: (record) =>
+        set((state) => {
+          if (record.minutes <= 0 || state.focusLog.some((r) => r.id === record.id)) return state;
+          const linked = record.sessionId ? state.sessions.find((s) => s.id === record.sessionId) : undefined;
+          return {
+            focusLog: [...state.focusLog, record],
+            chapters: applyRecord(state.chapters, record, 1),
+            sessions: linked
+              ? state.sessions.map((s) => (s.id === linked.id ? { ...s, status: 'completed' as const } : s))
+              : state.sessions,
+          };
+        }),
+
+      removeFocusRecord: (recordId) =>
+        set((state) => {
+          const record = state.focusLog.find((r) => r.id === recordId);
+          if (!record) return state;
+          return {
+            focusLog: state.focusLog.filter((r) => r.id !== recordId),
+            chapters: applyRecord(state.chapters, record, -1),
+          };
+        }),
 
       completeRevision: (revisionId) =>
         set((state) => {
@@ -132,14 +237,16 @@ export const useStudyStore = create<StudyStore>()(
 
           const revisions = state.revisions.map((r) => (r.id === revisionId ? completed : r));
           if (next && !alreadyScheduled) {
-            revisions.push({
-              ...next,
-              id: `rev-${crypto.randomUUID()}`,
-              chapterId: task.chapterId,
-              priority: task.priority,
-            });
+            revisions.push({ ...next, id: newId('rev'), chapterId: task.chapterId, priority: task.priority });
           }
-          return { revisions };
+          return {
+            revisions,
+            chapters: withChapter(state.chapters, task.chapterId, (c) => ({
+              ...c,
+              lastStudied: todayISO(),
+              status: c.status === 'revision_due' ? 'completed' : c.status,
+            })),
+          };
         }),
 
       rescheduleRevision: (revisionId, dueDate) =>
@@ -147,25 +254,9 @@ export const useStudyStore = create<StudyStore>()(
           revisions: state.revisions.map((r) => (r.id === revisionId ? { ...r, dueDate } : r)),
         })),
 
-      setSessionStatus: (sessionId, status) =>
-        set((state) => {
-          const session = state.sessions.find((s) => s.id === sessionId);
-          if (!session || session.status === status) return state;
+      addMockExam: (exam) => set((state) => ({ mockExams: [...state.mockExams, { ...exam, id: newId('m') }] })),
 
-          const sessions = state.sessions.map((s) => (s.id === sessionId ? { ...s, status } : s));
-          if (status !== 'completed' || session.status === 'completed') return { sessions };
-
-          const minutes = session.durationMinutes;
-          return {
-            sessions,
-            studyLog: addMinutes(state.studyLog, session.date, minutes),
-            chapters: withChapter(state.chapters, session.chapterId, (c) => ({
-              ...c,
-              actualHours: c.actualHours + minutes / 60,
-              lastStudied: session.date,
-            })),
-          };
-        }),
+      deleteMockExam: (examId) => set((state) => ({ mockExams: state.mockExams.filter((m) => m.id !== examId) })),
 
       importData: (snapshot) => set(() => snapshot),
 
@@ -173,15 +264,23 @@ export const useStudyStore = create<StudyStore>()(
     }),
     {
       name: 'cma-study-os',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         settings: state.settings,
         chapters: state.chapters,
         sessions: state.sessions,
         revisions: state.revisions,
-        studyLog: state.studyLog,
+        focusLog: state.focusLog,
+        mockExams: state.mockExams,
+        practiceLog: state.practiceLog,
       }),
+      // Unknown or malformed stored data falls back to the seed instead of crashing.
+      migrate: () => createInitialState(),
+      merge: (persisted, current) => {
+        const result = parseSnapshot(persisted);
+        return result.ok ? { ...current, ...result.data } : current;
+      },
     },
   ),
 );

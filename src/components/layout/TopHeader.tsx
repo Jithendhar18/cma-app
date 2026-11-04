@@ -1,5 +1,6 @@
-import { useLocation } from 'react-router-dom';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { Search } from 'lucide-react';
+import { useUiStore } from '@/stores/uiStore';
 import { findNavItem } from '@/app/navigation';
 import { Avatar } from '@/components/layout/Sidebar';
 import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
@@ -10,6 +11,7 @@ export function TopHeader() {
   const { pathname } = useLocation();
   const item = findNavItem(pathname);
   const name = useStudyStore((state) => state.settings.name);
+  const openPalette = useUiStore((state) => state.setPaletteOpen);
   const isSubjectDetail = pathname.startsWith('/subjects/');
 
   return (
@@ -24,6 +26,16 @@ export function TopHeader() {
         <p className="hidden text-[13px] text-ink-2 md:block">{formatLongDate(todayISO())}</p>
       </div>
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => openPalette(true)}
+          aria-label="Search"
+          className="flex h-9 items-center gap-2 rounded-lg border bg-surface px-2.5 text-[12px] text-ink-3 transition-colors hover:text-ink md:w-56"
+        >
+          <Search className="size-4" />
+          <span className="hidden flex-1 text-left md:block">Search…</span>
+          <kbd className="hidden rounded border px-1.5 text-[10px] md:block">⌘K</kbd>
+        </button>
         <div className="hidden md:block">
           <ThemeSwitcher />
         </div>

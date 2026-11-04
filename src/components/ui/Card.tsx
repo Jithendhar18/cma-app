@@ -12,7 +12,7 @@ export function Card({ children, className, padded = true, as: Tag = 'div' }: Ca
   return (
     <Tag
       className={cn(
-        'rounded-xl border bg-surface shadow-card',
+        'min-w-0 rounded-xl border bg-surface shadow-card',
         padded && 'p-5 md:p-6',
         className,
       )}

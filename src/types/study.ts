@@ -38,6 +38,8 @@ export interface Chapter {
   questionsPracticed: number;
   correctAnswers: number;
   lastStudied: string | null;
+  /** Date the chapter first reached a completed state. */
+  completedOn?: string | null;
   notes: string;
 }
 
@@ -49,6 +51,40 @@ export interface StudySession {
   startTime: string;
   durationMinutes: number;
   status: SessionStatus;
+  priority: Priority;
+  notes: string;
+}
+
+export type FocusMode = 'pomodoro' | 'stopwatch' | 'planner';
+
+/** One block of actually-focused time. The single source of truth for study hours. */
+export interface FocusRecord {
+  id: string;
+  date: string;
+  subjectId: string;
+  chapterId: string;
+  minutes: number;
+  mode: FocusMode;
+  notes: string;
+  sessionId: string | null;
+}
+
+export interface PracticeRecord {
+  id: string;
+  date: string;
+  chapterId: string;
+  subjectId: string;
+  questions: number;
+  correct: number;
+}
+
+export interface MockExam {
+  id: string;
+  date: string;
+  subjectId: string;
+  name: string;
+  score: number;
+  maxScore: number;
 }
 
 export interface RevisionTask {
@@ -75,6 +111,8 @@ export interface Settings {
   pomodoroFocusMinutes: number;
   shortBreakMinutes: number;
   longBreakMinutes: number;
+  longBreakEvery: number;
+  avatar: string | null;
   theme: ThemeMode;
 }
 
@@ -86,5 +124,7 @@ export interface StudyDataSnapshot {
   chapters: Chapter[];
   sessions: StudySession[];
   revisions: RevisionTask[];
-  studyLog: StudyLog;
+  focusLog: FocusRecord[];
+  mockExams: MockExam[];
+  practiceLog: PracticeRecord[];
 }
