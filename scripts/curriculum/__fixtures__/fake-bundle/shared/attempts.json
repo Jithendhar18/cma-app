@@ -1,0 +1,17 @@
+[
+  {
+    "stableKey": "fake-attempt-a", "year": 2090, "session": "december", "label": "FAKE attempt A",
+    "examStartDate": null, "examEndDate": null, "dateStatus": "unannounced",
+    "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer"
+  },
+  {
+    "stableKey": "fake-attempt-b", "year": 2091, "session": "june", "label": "FAKE attempt B",
+    "examStartDate": null, "examEndDate": null, "dateStatus": "unannounced",
+    "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer"
+  },
+  {
+    "stableKey": "fake-attempt-c", "year": 2092, "session": "june", "label": "FAKE attempt C (still draft)",
+    "examStartDate": null, "examEndDate": null, "dateStatus": "unannounced",
+    "status": "draft", "sourceRef": null, "verifiedAt": null, "verifiedBy": null
+  }
+]

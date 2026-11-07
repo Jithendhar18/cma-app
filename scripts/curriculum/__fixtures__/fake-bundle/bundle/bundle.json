@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "bundleKey": "fake-course.fake-syllabus",
+  "bundleVersion": "1",
+  "course": {
+    "stableKey": "fake-course", "name": "FAKE Course", "levelOrder": 1,
+    "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer"
+  },
+  "syllabus": {
+    "stableKey": "fake-syllabus", "name": "FAKE Syllabus", "effectiveFrom": null,
+    "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer"
+  },
+  "courseSyllabus": { "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" }
+}

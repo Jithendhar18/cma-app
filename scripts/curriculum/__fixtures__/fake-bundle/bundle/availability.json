@@ -1,0 +1,4 @@
+[
+  { "attempt": "fake-attempt-a", "status": "enabled", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" },
+  { "attempt": "fake-attempt-b", "status": "enabled", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" }
+]

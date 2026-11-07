@@ -1,0 +1,6 @@
+-- Intentionally empty.
+--
+-- The student-facing dataset must contain only verified curriculum, applied through the reviewed
+-- import process (docs/architecture/curriculum-seeding.md). No sample or invented curriculum is
+-- ever seeded here. Database tests use a clearly labelled fake fixture inside rolled-back
+-- transactions, so it never persists.

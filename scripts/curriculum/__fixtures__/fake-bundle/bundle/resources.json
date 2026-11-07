@@ -1,0 +1,16 @@
+[
+  {
+    "stableKey": "fake-resource-1", "resourceType": "mcq_bank", "title": "FAKE MCQ bank link",
+    "url": "https://example.invalid/fake-mcq", "publisher": "FAKE publisher", "isOfficial": true,
+    "scope": { "subject": "fake-subject-1", "chapter": null, "attempt": null },
+    "year": null, "session": null, "linkStatus": "active", "lastCheckedAt": "2000-01-07",
+    "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer"
+  },
+  {
+    "stableKey": "fake-resource-2", "resourceType": "previous_question_paper", "title": "FAKE previous paper link",
+    "url": "https://example.invalid/fake-paper", "publisher": "FAKE publisher", "isOfficial": true,
+    "scope": { "subject": "fake-subject-2", "chapter": null, "attempt": "fake-attempt-a" },
+    "year": 2089, "session": "december", "linkStatus": "active", "lastCheckedAt": null,
+    "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer"
+  }
+]

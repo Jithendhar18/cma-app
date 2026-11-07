@@ -1,0 +1,7 @@
+[
+  {
+    "stableKey": "fake-weightage-section-a", "level": "section", "target": "fake-section-a",
+    "minPercent": 20, "maxPercent": 30, "publishedLabel": "FAKE range as published",
+    "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer"
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "stableKey": "fake-source-1",
+    "title": "FAKE source document (test fixture, not a real publication)",
+    "url": "https://example.invalid/fake-source-1",
+    "documentType": "fixture",
+    "publishedOn": "2000-01-01",
+    "retrievedOn": "2000-01-02",
+    "note": "internal remark, never shown to students"
+  },
+  {
+    "stableKey": "fake-source-2",
+    "title": "FAKE second source (test fixture)",
+    "url": null,
+    "documentType": "fixture",
+    "publishedOn": null,
+    "retrievedOn": "2000-01-03",
+    "note": null
+  }
+]

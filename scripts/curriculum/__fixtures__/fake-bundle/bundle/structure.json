@@ -1,0 +1,22 @@
+{
+  "groups": [
+    { "stableKey": "fake-group-1", "name": "FAKE Group 1", "sortOrder": 1, "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" },
+    { "stableKey": "fake-group-2", "name": "FAKE Group 2", "sortOrder": 2, "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" }
+  ],
+  "subjects": [
+    { "stableKey": "fake-subject-1", "slug": "fake-subject-1", "group": "fake-group-1", "paperNumber": 1, "name": "FAKE Subject 1", "shortName": "Fake 1", "sortOrder": 1, "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" },
+    { "stableKey": "fake-subject-2", "slug": "fake-subject-2", "group": "fake-group-1", "paperNumber": 2, "name": "FAKE Subject 2", "shortName": "Fake 2", "sortOrder": 2, "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" },
+    { "stableKey": "fake-subject-3", "slug": "fake-subject-3", "group": "fake-group-2", "paperNumber": 3, "name": "FAKE Subject 3", "shortName": "Fake 3", "sortOrder": 1, "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" }
+  ],
+  "sections": [
+    { "stableKey": "fake-section-a", "subject": "fake-subject-1", "parent": null, "officialLabel": "FAKE Section A", "title": "FAKE Section A", "sortOrder": 1, "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" },
+    { "stableKey": "fake-section-a1", "subject": "fake-subject-1", "parent": "fake-section-a", "officialLabel": null, "title": "FAKE Section A.1", "sortOrder": 1, "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" }
+  ],
+  "chapters": [
+    { "stableKey": "fake-ch-1", "subject": "fake-subject-1", "section": "fake-section-a1", "officialLabel": null, "title": "FAKE Chapter 1", "sequenceNo": 1, "suggestedStudyHours": null, "supersededBy": null, "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" },
+    { "stableKey": "fake-ch-2", "subject": "fake-subject-1", "section": "fake-section-a1", "officialLabel": null, "title": "FAKE Chapter 2", "sequenceNo": 2, "suggestedStudyHours": null, "supersededBy": null, "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" },
+    { "stableKey": "fake-ch-3", "subject": "fake-subject-1", "section": null, "officialLabel": null, "title": "FAKE Chapter 3", "sequenceNo": 3, "suggestedStudyHours": null, "supersededBy": null, "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" },
+    { "stableKey": "fake-ch-4", "subject": "fake-subject-2", "section": null, "officialLabel": null, "title": "FAKE Chapter 4", "sequenceNo": 1, "suggestedStudyHours": null, "supersededBy": null, "status": "published", "sourceRef": "fake-source-1", "verifiedAt": "2000-01-05", "verifiedBy": "fake-maintainer" },
+    { "stableKey": "fake-ch-5", "subject": "fake-subject-3", "section": null, "officialLabel": null, "title": "FAKE Chapter 5", "sequenceNo": 1, "suggestedStudyHours": null, "supersededBy": null, "status": "published", "sourceRef": "fake-source-2", "verifiedAt": "2000-01-06", "verifiedBy": "fake-maintainer" }
+  ]
+}
