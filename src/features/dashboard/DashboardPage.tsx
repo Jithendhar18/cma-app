@@ -34,7 +34,7 @@ export default function DashboardPage() {
       completion: overallCompletion(chapters),
       streak: studyStreak(studyLog, today),
       revDone: revisions.filter((r) => r.completedOn).length,
-      revTotal: revisions.length,
+      revTotal: revisions.filter((r) => !r.cancelledOn).length,
     }),
     [studyLog, chapters, revisions, today],
   );

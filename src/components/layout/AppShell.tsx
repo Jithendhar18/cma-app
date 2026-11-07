@@ -5,12 +5,15 @@ import { TopHeader } from '@/components/layout/TopHeader';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { MiniTimer } from '@/components/layout/MiniTimer';
+import { StorageWarning } from '@/components/layout/StorageWarning';
 import { useThemeSync } from '@/hooks/useThemeSync';
+import { useDayRollover } from '@/hooks/useDayRollover';
 import { useTimerEngine } from '@/hooks/useTimerEngine';
 
 export function AppShell() {
   useThemeSync();
   useTimerEngine();
+  useDayRollover();
   const { pathname } = useLocation();
   const isTimer = pathname === '/timer';
 
@@ -33,6 +36,7 @@ export function AppShell() {
       {!isTimer && <MiniTimer />}
       {!isTimer && <MobileNav />}
       <CommandPalette />
+      <StorageWarning />
     </div>
   );
 }

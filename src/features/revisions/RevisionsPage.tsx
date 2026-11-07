@@ -29,8 +29,9 @@ export default function RevisionsPage() {
   const [tab, setTab] = useState<RevisionBucket>('today');
 
   const grouped = useMemo(() => {
-    const map: Record<RevisionBucket, RevisionTask[]> = { today: [], overdue: [], upcoming: [], completed: [] };
+    const map: Record<RevisionBucket, RevisionTask[]> = { today: [], overdue: [], upcoming: [], completed: [], cancelled: [] };
     revisions.forEach((r) => map[revisionBucket(r, today)].push(r));
+    // Cancelled revisions are history only and are not listed here.
     (Object.keys(map) as RevisionBucket[]).forEach((k) =>
       map[k].sort((a, b) => (k === 'completed' ? (b.completedOn ?? '').localeCompare(a.completedOn ?? '') : a.dueDate.localeCompare(b.dueDate) || PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])),
     );

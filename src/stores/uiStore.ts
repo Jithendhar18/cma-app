@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { createSafeStorage } from '@/lib/safeStorage';
 
 interface UiStore {
   sidebarCollapsed: boolean;
@@ -18,7 +19,7 @@ export const useUiStore = create<UiStore>()(
     }),
     {
       name: 'cma-study-os-ui',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => createSafeStorage()),
       partialize: (state) => ({ sidebarCollapsed: state.sidebarCollapsed }),
     },
   ),

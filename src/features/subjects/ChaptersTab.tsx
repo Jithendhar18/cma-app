@@ -33,7 +33,7 @@ export function ChaptersTab({ subject, focusChapterId }: { subject: Subject; foc
 function ChapterRow({ chapter, open, onToggle }: { chapter: Chapter; open: boolean; onToggle: () => void }) {
   const updateChapter = useStudyStore((s) => s.updateChapter);
   const next = useStudyStore((s) => s.revisions)
-    .filter((r) => r.chapterId === chapter.id && !r.completedOn)
+    .filter((r) => r.chapterId === chapter.id && !r.completedOn && !r.cancelledOn)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
   const accuracy = chapterAccuracy(chapter);
   const meta = CHAPTER_STATUS_META[chapter.status];

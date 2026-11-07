@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { todayISO } from '@/lib/dates';
+import { createSafeStorage } from '@/lib/safeStorage';
+import { allocateMinutes, mergeMs, splitIntervalByDay, sumMs } from '@/lib/focusSplit';
 import { useStudyStore } from '@/stores/studyStore';
 import type { Settings } from '@/types/study';
 
@@ -21,6 +23,8 @@ interface TimerState {
   accumulatedMs: number;
   /** Unique per focus block; doubles as the idempotency key for logging. */
   sessionKey: string | null;
+  /** Focused milliseconds of the current block per calendar date, so blocks can span midnight. */
+  focusMsByDate: Record<string, number>;
   completedFocusCount: number;
   subjectId: string;
   chapterId: string;
@@ -63,21 +67,36 @@ const idleBase = {
   runStartedAt: null,
   accumulatedMs: 0,
   sessionKey: null,
+  focusMsByDate: {} as Record<string, number>,
 };
 
-function logFocus(state: TimerState, ms: number) {
+/** The running segment of a focus block, attributed to the calendar days it covers. */
+function withSegment(state: TimerState, endMs: number): Record<string, number> {
+  if (state.phase !== 'focus' || state.status !== 'running' || state.runStartedAt === null) return state.focusMsByDate;
+  return mergeMs(state.focusMsByDate, splitIntervalByDay(state.runStartedAt, Math.max(state.runStartedAt, endMs)));
+}
+
+/**
+ * Logs one focus record per calendar day the block covered. Whole minutes are allocated so the
+ * total equals the block's real duration. Record ids are derived from the block's key and date, so
+ * logging the same block twice (refresh, second tab) can never create duplicates.
+ */
+function logFocus(state: TimerState, byDate: Record<string, number>, totalMs: number) {
   if (state.phase !== 'focus' || !state.sessionKey) return;
-  const minutes = Math.round(ms / MIN);
-  if (minutes < 1) return;
-  useStudyStore.getState().addFocusRecord({
-    id: `focus-${state.sessionKey}`,
-    date: todayISO(),
-    subjectId: state.subjectId,
-    chapterId: state.chapterId,
-    minutes,
-    mode: state.mode,
-    notes: state.notes.trim(),
-    sessionId: state.plannedSessionId,
+  // Older saved timers have no per-day breakdown: attribute everything to today.
+  const usable = Math.abs(sumMs(byDate) - totalMs) < 2000 ? byDate : { [todayISO()]: totalMs };
+  const parts = allocateMinutes(usable);
+  parts.forEach((part, i) => {
+    useStudyStore.getState().addFocusRecord({
+      id: i === 0 ? `focus-${state.sessionKey}` : `focus-${state.sessionKey}@${part.date}`,
+      date: part.date,
+      subjectId: state.subjectId,
+      chapterId: state.chapterId,
+      minutes: part.minutes,
+      mode: state.mode,
+      notes: state.notes.trim(),
+      sessionId: state.plannedSessionId,
+    });
   });
 }
 
@@ -125,6 +144,7 @@ export const useTimerStore = create<TimerStore>()(
           status: 'running',
           runStartedAt: now,
           accumulatedMs: 0,
+          focusMsByDate: {},
           sessionKey: state.phase === 'focus' ? `${now}` : null,
         });
         const planned = state.plannedSessionId;
@@ -136,7 +156,8 @@ export const useTimerStore = create<TimerStore>()(
       pause: () => {
         const state = get();
         if (state.status !== 'running') return;
-        set({ status: 'paused', accumulatedMs: elapsedMs(state, Date.now()), runStartedAt: null });
+        const now = Date.now();
+        set({ status: 'paused', accumulatedMs: elapsedMs(state, now), runStartedAt: null, focusMsByDate: withSegment(state, now) });
       },
 
       reset: () => {
@@ -152,7 +173,8 @@ export const useTimerStore = create<TimerStore>()(
       finish: () => {
         const state = get();
         if (state.status === 'idle') return;
-        logFocus(state, elapsedMs(state, Date.now()));
+        const now = Date.now();
+        logFocus(state, withSegment(state, now), elapsedMs(state, now));
         set({ ...idleBase, plannedSessionId: null });
       },
 
@@ -171,8 +193,10 @@ export const useTimerStore = create<TimerStore>()(
           set({ ...idleBase });
           return;
         }
-        // Log exactly the planned focus length, regardless of how late the tick ran.
-        logFocus(state, total);
+        // Log exactly the planned focus length, regardless of how late the tick ran. The last segment
+        // ends when the phase should have ended, not when this tick happened to fire.
+        const endedAt = (state.runStartedAt ?? Date.now()) + (total - state.accumulatedMs);
+        logFocus(state, withSegment(state, endedAt), total);
         const settings = useStudyStore.getState().settings;
         const count = state.completedFocusCount + 1;
         const nextPhase: TimerPhase = count % settings.longBreakEvery === 0 ? 'long_break' : 'short_break';
@@ -183,6 +207,7 @@ export const useTimerStore = create<TimerStore>()(
           runStartedAt: Date.now(),
           accumulatedMs: 0,
           sessionKey: null,
+          focusMsByDate: {},
           plannedSessionId: null,
         });
       },
@@ -190,7 +215,7 @@ export const useTimerStore = create<TimerStore>()(
     {
       name: 'cma-study-os-timer',
       version: 1,
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => createSafeStorage()),
     },
   ),
 );

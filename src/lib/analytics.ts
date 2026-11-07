@@ -11,6 +11,7 @@ import type {
   Subject,
 } from '@/types/study';
 import { addDaysISO, parseISODate, weekDatesISO } from '@/lib/dates';
+import { activeRevisions } from '@/lib/revisions';
 
 const DONE_STATUSES: ChapterStatus[] = ['completed', 'revision_due', 'exam_ready'];
 
@@ -46,7 +47,7 @@ export function subjectStats(
 ): SubjectStats {
   const own = chapters.filter((c) => c.subjectId === subjectId);
   const ids = new Set(own.map((c) => c.id));
-  const ownRevisions = revisions.filter((r) => ids.has(r.chapterId));
+  const ownRevisions = activeRevisions(revisions).filter((r) => ids.has(r.chapterId));
   const done = own.filter(isChapterDone).length;
   return {
     total: own.length,
@@ -132,9 +133,10 @@ export function daysUntil(isoDate: string, today: string): number {
   return Math.round(ms / 86_400_000);
 }
 
-export type RevisionBucket = 'overdue' | 'today' | 'upcoming' | 'completed';
+export type RevisionBucket = 'overdue' | 'today' | 'upcoming' | 'completed' | 'cancelled';
 
 export function revisionBucket(task: RevisionTask, today: string): RevisionBucket {
+  if (task.cancelledOn) return 'cancelled';
   if (task.completedOn) return 'completed';
   if (task.dueDate < today) return 'overdue';
   if (task.dueDate === today) return 'today';
@@ -184,7 +186,7 @@ export function rangeDates(range: RangeKey, studyLog: StudyLog, today: string): 
   const days = { '7d': 7, '30d': 30, '90d': 90, all: 0 }[range];
   if (days > 0) return Array.from({ length: days }, (_, i) => addDaysISO(today, i - (days - 1)));
   const first = Object.keys(studyLog).sort()[0] ?? today;
-  const span = Math.max(1, daysUntil(today, first) * -1 + 1);
+  const span = Math.max(1, daysUntil(today, first) + 1);
   return Array.from({ length: span }, (_, i) => addDaysISO(today, i - (span - 1)));
 }
 

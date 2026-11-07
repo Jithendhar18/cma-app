@@ -43,7 +43,7 @@ export function buildSearchIndex(data: StudyDataSnapshot, library: LibrarySource
     to: `/planner?date=${s.date}`,
   }));
   const revisions = data.revisions
-    .filter((r) => !r.completedOn)
+    .filter((r) => !r.completedOn && !r.cancelledOn)
     .map<SearchItem>((r) => ({
       id: `revision-${r.id}`,
       kind: 'Revision',

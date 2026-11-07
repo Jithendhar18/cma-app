@@ -26,7 +26,7 @@ export function RevisionHistoryTab({ subject }: { subject: Subject }) {
                 <p className="truncate text-[13px] font-medium text-ink">{chapters.find((c) => c.id === r.chapterId)?.title}</p>
                 <p className="text-[12px] text-ink-3">{REVISION_LABEL(r.revisionNumber)} · due {formatShortDate(r.dueDate)}</p>
               </div>
-              {r.completedOn ? <Badge tone="emerald">Done {formatShortDate(r.completedOn)}</Badge> : <Badge tone="amber">Pending</Badge>}
+              {r.cancelledOn ? <Badge tone="neutral">Cancelled {formatShortDate(r.cancelledOn)}</Badge> : r.completedOn ? <Badge tone="emerald">Done {formatShortDate(r.completedOn)}</Badge> : <Badge tone="amber">Pending</Badge>}
             </li>
           ))}
         </ul>

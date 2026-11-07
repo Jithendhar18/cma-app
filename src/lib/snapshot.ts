@@ -1,3 +1,4 @@
+import { isAcceptableAvatar } from '@/lib/avatar';
 import type { StudyDataSnapshot } from '@/types/study';
 
 type Rec = Record<string, unknown>;
@@ -129,9 +130,19 @@ export function parseSnapshot(raw: unknown): SnapshotResult {
   });
   if (!practiceOk) return { ok: false, error: 'Practice history is invalid.' };
 
+  // Exports from before demo tracking have no meta; a missing or invalid anchor means "no demo content".
+  const metaRaw = raw.meta;
+  const seedAnchor = isRec(metaRaw) && isDate(metaRaw.seedAnchor) ? metaRaw.seedAnchor : null;
+
   const { settings, chapters, sessions, revisions, focusLog, mockExams } = raw as unknown as StudyDataSnapshot;
   return {
     ok: true,
-    data: { settings, chapters, sessions, revisions, focusLog, mockExams, practiceLog: practiceRaw as StudyDataSnapshot['practiceLog'] },
+    data: {
+      // An unusable profile picture is dropped rather than failing the whole import.
+      settings: isAcceptableAvatar(settings.avatar) || settings.avatar === null ? settings : { ...settings, avatar: null },
+      chapters, sessions, revisions, focusLog, mockExams,
+      practiceLog: practiceRaw as StudyDataSnapshot['practiceLog'],
+      meta: { seedAnchor },
+    },
   };
 }

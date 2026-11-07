@@ -40,6 +40,8 @@ export interface Chapter {
   lastStudied: string | null;
   /** Date the chapter first reached a completed state. */
   completedOn?: string | null;
+  /** True while lastStudied/completedOn are untouched demo dates that may be rolled forward. */
+  demo?: boolean;
   notes: string;
 }
 
@@ -53,6 +55,8 @@ export interface StudySession {
   status: SessionStatus;
   priority: Priority;
   notes: string;
+  /** Untouched demo record; dates may be rolled forward. Cleared when the user edits it. */
+  demo?: boolean;
 }
 
 export type FocusMode = 'pomodoro' | 'stopwatch' | 'planner';
@@ -67,6 +71,7 @@ export interface FocusRecord {
   mode: FocusMode;
   notes: string;
   sessionId: string | null;
+  demo?: boolean;
 }
 
 export interface PracticeRecord {
@@ -76,6 +81,7 @@ export interface PracticeRecord {
   subjectId: string;
   questions: number;
   correct: number;
+  demo?: boolean;
 }
 
 export interface MockExam {
@@ -85,6 +91,7 @@ export interface MockExam {
   name: string;
   score: number;
   maxScore: number;
+  demo?: boolean;
 }
 
 export interface RevisionTask {
@@ -94,6 +101,9 @@ export interface RevisionTask {
   dueDate: string;
   completedOn: string | null;
   priority: Priority;
+  /** Set when the chapter was marked incomplete. Cancelled tasks are kept as history only. */
+  cancelledOn?: string | null;
+  demo?: boolean;
 }
 
 export interface Settings {
@@ -119,6 +129,11 @@ export interface Settings {
 /** Focused minutes keyed by ISO date (YYYY-MM-DD). */
 export type StudyLog = Record<string, number>;
 
+export interface SnapshotMeta {
+  /** Date the demo content was last anchored to. Null when there is no demo content to refresh. */
+  seedAnchor: string | null;
+}
+
 export interface StudyDataSnapshot {
   settings: Settings;
   chapters: Chapter[];
@@ -127,4 +142,5 @@ export interface StudyDataSnapshot {
   focusLog: FocusRecord[];
   mockExams: MockExam[];
   practiceLog: PracticeRecord[];
+  meta: SnapshotMeta;
 }

@@ -72,7 +72,7 @@ export default function AnalyticsPage() {
 
     const mocks = [...mockExams].sort((a, b) => a.date.localeCompare(b.date)).map((m) => ({ label: formatShortDate(m.date), name: m.name, Score: mockPercent(m) }));
 
-    const due = revisions.filter((r) => r.dueDate <= today);
+    const due = revisions.filter((r) => !r.cancelledOn && r.dueDate <= today);
     const revisionRate = due.length ? (due.filter((r) => r.completedOn).length / due.length) * 100 : 0;
 
     return {

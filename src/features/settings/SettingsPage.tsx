@@ -6,7 +6,10 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Sheet } from '@/components/ui/Sheet';
 import { fieldClass, labelClass } from '@/components/ui/field';
-import { parseSnapshot } from '@/lib/snapshot';
+import { readAvatar } from '@/lib/avatar';
+import { loadSnapshot } from '@/lib/loadSnapshot';
+import { todayISO } from '@/lib/dates';
+import { applyImportExtras, buildExport } from '@/features/settings/dataTransfer';
 import { cn } from '@/lib/cn';
 import { useStudyStore } from '@/stores/studyStore';
 import { useTimerStore } from '@/stores/timerStore';
@@ -48,31 +51,6 @@ function useSaved() {
   return [saved, flash] as const;
 }
 
-/** Downsizes an uploaded image to a small data URL so it fits comfortably in localStorage. */
-function readAvatar(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const size = 128;
-      const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return reject(new Error('Canvas unavailable'));
-      const side = Math.min(img.width, img.height);
-      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', 0.85));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('That file is not a readable image.'));
-    };
-    img.src = url;
-  });
-}
-
 function ProfileSection() {
   const settings = useStudyStore((s) => s.settings);
   const update = useStudyStore((s) => s.updateSettings);
@@ -95,7 +73,6 @@ function ProfileSection() {
   const onFile = async (file?: File) => {
     if (!file) return;
     try {
-      if (!file.type.startsWith('image/')) throw new Error('Choose an image file.');
       update({ avatar: await readAvatar(file) });
       setAvatarError('');
     } catch (err) {
@@ -262,24 +239,24 @@ function DataSection() {
   const [confirmReset, setConfirmReset] = useState(false);
 
   const exportData = () => {
-    const { settings, chapters, sessions, revisions, focusLog, mockExams, practiceLog } = useStudyStore.getState();
-    const blob = new Blob([JSON.stringify({ settings, chapters, sessions, revisions, focusLog, mockExams, practiceLog }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(buildExport(), null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `cma-study-os-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    setMessage({ tone: 'ok', text: 'Exported your study data.' });
+    setMessage({ tone: 'ok', text: 'Exported study data, timer selection and layout preferences.' });
   };
 
   const onImport = async (file?: File) => {
     if (!file) return;
     try {
-      const result = parseSnapshot(JSON.parse(await file.text()));
+      const raw: unknown = JSON.parse(await file.text());
+      const result = loadSnapshot(raw, todayISO());
       if (!result.ok) return setMessage({ tone: 'error', text: `Import failed. ${result.error} Your existing data was not changed.` });
       importData(result.data);
-      useTimerStore.getState().reset();
+      applyImportExtras(raw);
       setMessage({ tone: 'ok', text: 'Imported successfully.' });
     } catch {
       setMessage({ tone: 'error', text: 'Import failed. That file is not valid JSON. Your existing data was not changed.' });

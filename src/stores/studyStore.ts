@@ -2,7 +2,11 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { createSeedData } from '@/data/seed';
 import { addDaysISO, todayISO } from '@/lib/dates';
-import { parseSnapshot } from '@/lib/snapshot';
+import { rollDemoForward } from '@/lib/demoRoll';
+import { splitPlannedSession } from '@/lib/focusSplit';
+import { loadSnapshot } from '@/lib/loadSnapshot';
+import { isPending, nextRevisionNumber } from '@/lib/revisions';
+import { backupCorrupt, createSafeStorage } from '@/lib/safeStorage';
 import type {
   Chapter,
   ChapterStatus,
@@ -35,6 +39,8 @@ interface StudyActions {
   addMockExam: (exam: Omit<MockExam, 'id'>) => void;
   deleteMockExam: (examId: string) => void;
   importData: (snapshot: StudyDataSnapshot) => void;
+  /** Moves untouched demo records forward to today. Never touches user-created or edited records. */
+  refreshDemoDates: () => void;
   resetDemoData: () => void;
 }
 
@@ -58,6 +64,20 @@ function nextRevisionAfter(task: RevisionTask, settings: Settings): NextRevision
   }
 }
 
+/** Due date for a revision created because a chapter was (re)completed today. */
+function dueDateFor(number: RevisionTask['revisionNumber'], today: string, settings: Settings): string {
+  switch (number) {
+    case 1:
+      return addDaysISO(today, 1);
+    case 2:
+      return addDaysISO(today, 7);
+    case 3:
+      return addDaysISO(today, 21);
+    default:
+      return settings.finalRevisionDate > today ? settings.finalRevisionDate : addDaysISO(today, 1);
+  }
+}
+
 function withChapter(chapters: Chapter[], chapterId: string, change: (chapter: Chapter) => Chapter): Chapter[] {
   return chapters.map((chapter) => (chapter.id === chapterId ? change(chapter) : chapter));
 }
@@ -70,6 +90,7 @@ function applyRecord(chapters: Chapter[], record: FocusRecord, direction: 1 | -1
     actualHours: Math.max(0, c.actualHours + (direction * record.minutes) / 60),
     lastStudied: direction === 1 ? (c.lastStudied && c.lastStudied > record.date ? c.lastStudied : record.date) : c.lastStudied,
     status: direction === 1 && c.status === 'not_started' ? 'learning' : c.status,
+    demo: false,
   }));
 }
 
@@ -86,33 +107,43 @@ export const useStudyStore = create<StudyStore>()(
         set((state) => {
           const current = state.chapters.find((c) => c.id === chapterId);
           if (!current) return state;
+          const today = todayISO();
 
-          const becameDone =
-            patch.status !== undefined &&
-            CHAPTER_DONE_STATUSES.includes(patch.status) &&
-            !CHAPTER_DONE_STATUSES.includes(current.status);
-          const hasRevisions = state.revisions.some((r) => r.chapterId === chapterId);
+          const wasDone = CHAPTER_DONE_STATUSES.includes(current.status);
+          const willBeDone = patch.status === undefined ? wasDone : CHAPTER_DONE_STATUSES.includes(patch.status);
+          const becameDone = !wasDone && willBeDone;
+          const becameIncomplete = wasDone && !willBeDone;
 
-          const revisions =
-            becameDone && !hasRevisions
-              ? [
-                  ...state.revisions,
-                  {
-                    id: newId('rev'),
-                    chapterId,
-                    revisionNumber: 1 as const,
-                    dueDate: addDaysISO(todayISO(), 1),
-                    completedOn: null,
-                    priority: 'medium' as const,
-                  },
-                ]
-              : state.revisions;
+          let revisions = state.revisions;
+          if (becameIncomplete) {
+            // History stays: completed revisions are kept, pending ones are cancelled (not deleted).
+            revisions = revisions.map((r) =>
+              r.chapterId === chapterId && isPending(r) ? { ...r, cancelledOn: today, demo: false } : r,
+            );
+          }
+          if (becameDone && !revisions.some((r) => r.chapterId === chapterId && isPending(r))) {
+            const number = nextRevisionNumber(revisions, chapterId);
+            if (number !== null) {
+              revisions = [
+                ...revisions,
+                {
+                  id: newId('rev'),
+                  chapterId,
+                  revisionNumber: number,
+                  dueDate: dueDateFor(number, today, state.settings),
+                  completedOn: null,
+                  priority: 'medium' as const,
+                },
+              ];
+            }
+          }
 
           return {
             chapters: withChapter(state.chapters, chapterId, (c) => ({
               ...c,
               ...patch,
-              completedOn: becameDone ? todayISO() : c.completedOn ?? null,
+              completedOn: becameDone ? today : becameIncomplete ? null : (c.completedOn ?? null),
+              demo: false,
             })),
             revisions,
           };
@@ -136,6 +167,7 @@ export const useStudyStore = create<StudyStore>()(
             questionsPracticed: c.questionsPracticed + questions,
             correctAnswers: c.correctAnswers + Math.min(correct, questions),
             lastStudied: todayISO(),
+            demo: false,
             status: c.status === 'not_started' ? 'learning' : c.status,
           })),
         })),
@@ -148,7 +180,9 @@ export const useStudyStore = create<StudyStore>()(
 
       updateSession: (sessionId, patch) =>
         set((state) => ({
-          sessions: state.sessions.map((s) => (s.id === sessionId ? { ...s, ...patch } : s)),
+          sessions: state.sessions.map((s) => (s.id === sessionId ? { ...s, ...patch, demo: false } : s)),
+          // Time already logged against this session must stay on the same dates as the session.
+          focusLog: state.focusLog.map((r) => (r.sessionId === sessionId ? { ...r, demo: false } : r)),
         })),
 
       deleteSession: (sessionId) =>
@@ -163,40 +197,44 @@ export const useStudyStore = create<StudyStore>()(
           const session = state.sessions.find((s) => s.id === sessionId);
           if (!session || session.status === status) return state;
 
-          const sessions = state.sessions.map((s) => (s.id === sessionId ? { ...s, status } : s));
-          const plannerId = `plan-${sessionId}`;
+          const sessions = state.sessions.map((s) => (s.id === sessionId ? { ...s, status, demo: false } : s));
+          const focusLog = state.focusLog.map((r) => (r.sessionId === sessionId ? { ...r, demo: false } : r));
+          const plannerPrefix = `plan-${sessionId}`;
+          const isPlannerRecord = (id: string) => id === plannerPrefix || id.startsWith(`${plannerPrefix}@`);
           const logged = state.focusLog.some((r) => r.sessionId === sessionId);
 
           if (status === 'completed' && !logged) {
-            const record: FocusRecord = {
-              id: plannerId,
-              date: session.date,
+            // A session that runs past midnight is credited to each calendar day it covers.
+            const parts = splitPlannedSession(session.date, session.startTime, session.durationMinutes);
+            const records: FocusRecord[] = parts.map((part, i) => ({
+              id: i === 0 ? plannerPrefix : `${plannerPrefix}@${part.date}`,
+              date: part.date,
               subjectId: session.subjectId,
               chapterId: session.chapterId,
-              minutes: session.durationMinutes,
+              minutes: part.minutes,
               mode: 'planner',
               notes: session.notes,
               sessionId,
-            };
+            }));
             return {
               sessions,
-              focusLog: [...state.focusLog, record],
-              chapters: applyRecord(state.chapters, record, 1),
+              focusLog: [...focusLog, ...records],
+              chapters: records.reduce((chapters, record) => applyRecord(chapters, record, 1), state.chapters),
             };
           }
 
           if (session.status === 'completed' && status !== 'completed') {
             // Un-completing only removes time that the planner itself credited.
-            const planned = state.focusLog.find((r) => r.id === plannerId);
-            if (planned) {
+            const planned = state.focusLog.filter((r) => isPlannerRecord(r.id));
+            if (planned.length > 0) {
               return {
                 sessions,
-                focusLog: state.focusLog.filter((r) => r.id !== plannerId),
-                chapters: applyRecord(state.chapters, planned, -1),
+                focusLog: focusLog.filter((r) => !isPlannerRecord(r.id)),
+                chapters: planned.reduce((chapters, record) => applyRecord(chapters, record, -1), state.chapters),
               };
             }
           }
-          return { sessions };
+          return { sessions, focusLog };
         }),
 
       addFocusRecord: (record) =>
@@ -225,14 +263,14 @@ export const useStudyStore = create<StudyStore>()(
       completeRevision: (revisionId) =>
         set((state) => {
           const task = state.revisions.find((r) => r.id === revisionId);
-          if (!task || task.completedOn) return state;
+          if (!task || task.completedOn || task.cancelledOn) return state;
 
-          const completed = { ...task, completedOn: todayISO() };
+          const completed = { ...task, completedOn: todayISO(), demo: false };
           const next = nextRevisionAfter(completed, state.settings);
           const alreadyScheduled =
             next !== null &&
             state.revisions.some(
-              (r) => r.chapterId === task.chapterId && r.revisionNumber === next.revisionNumber && !r.completedOn,
+              (r) => r.chapterId === task.chapterId && r.revisionNumber === next.revisionNumber && isPending(r),
             );
 
           const revisions = state.revisions.map((r) => (r.id === revisionId ? completed : r));
@@ -244,6 +282,7 @@ export const useStudyStore = create<StudyStore>()(
             chapters: withChapter(state.chapters, task.chapterId, (c) => ({
               ...c,
               lastStudied: todayISO(),
+              demo: false,
               status: c.status === 'revision_due' ? 'completed' : c.status,
             })),
           };
@@ -251,7 +290,7 @@ export const useStudyStore = create<StudyStore>()(
 
       rescheduleRevision: (revisionId, dueDate) =>
         set((state) => ({
-          revisions: state.revisions.map((r) => (r.id === revisionId ? { ...r, dueDate } : r)),
+          revisions: state.revisions.map((r) => (r.id === revisionId && isPending(r) ? { ...r, dueDate, demo: false } : r)),
         })),
 
       addMockExam: (exam) => set((state) => ({ mockExams: [...state.mockExams, { ...exam, id: newId('m') }] })),
@@ -260,12 +299,22 @@ export const useStudyStore = create<StudyStore>()(
 
       importData: (snapshot) => set(() => snapshot),
 
+      refreshDemoDates: () =>
+        set((state) => {
+          const snapshot: StudyDataSnapshot = {
+            settings: state.settings, chapters: state.chapters, sessions: state.sessions, revisions: state.revisions,
+            focusLog: state.focusLog, mockExams: state.mockExams, practiceLog: state.practiceLog, meta: state.meta,
+          };
+          const rolled = rollDemoForward(snapshot, todayISO());
+          return rolled === snapshot ? state : rolled;
+        }),
+
       resetDemoData: () => set(() => createInitialState()),
     }),
     {
       name: 'cma-study-os',
-      version: 2,
-      storage: createJSONStorage(() => localStorage),
+      version: 3,
+      storage: createJSONStorage(() => createSafeStorage()),
       partialize: (state) => ({
         settings: state.settings,
         chapters: state.chapters,
@@ -274,12 +323,22 @@ export const useStudyStore = create<StudyStore>()(
         focusLog: state.focusLog,
         mockExams: state.mockExams,
         practiceLog: state.practiceLog,
+        meta: state.meta,
       }),
-      // Unknown or malformed stored data falls back to the seed instead of crashing.
-      migrate: () => createInitialState(),
+      // Older saved data is upgraded in `merge`, never discarded here.
+      migrate: (persisted) => persisted as StudyStore,
       merge: (persisted, current) => {
-        const result = parseSnapshot(persisted);
-        return result.ok ? { ...current, ...result.data } : current;
+        // Nothing usable was stored (empty, or unreadable and already backed up by the storage layer).
+        if (persisted === undefined || persisted === null) return current;
+        const result = loadSnapshot(persisted, todayISO());
+        if (result.ok) return { ...current, ...result.data };
+        // Unusable data falls back to the demo for this session, but the original is kept aside.
+        try {
+          backupCorrupt(localStorage, 'cma-study-os', JSON.stringify(persisted));
+        } catch {
+          /* ignore */
+        }
+        return current;
       },
     },
   ),

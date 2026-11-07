@@ -48,7 +48,7 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
   }, []);
 
   const index = useMemo(
-    () => buildSearchIndex({ settings, chapters, sessions, revisions, focusLog: [], mockExams: [], practiceLog: [] }, library),
+    () => buildSearchIndex({ settings, chapters, sessions, revisions, focusLog: [], mockExams: [], practiceLog: [], meta: { seedAnchor: null } }, library),
     [settings, chapters, sessions, revisions, library],
   );
   const results = useMemo(() => searchItems(index, query), [index, query]);
