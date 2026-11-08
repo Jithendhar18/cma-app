@@ -2,7 +2,7 @@
 
 A personal study command centre for a CMA Intermediate student (Group I and Group II, December 2026 attempt). It tracks daily focus time, syllabus and chapter progress, spaced revision, practice and mock scores, and exam readiness.
 
-This phase is front-end only. There is no backend, no authentication and no Supabase connection. All data lives in your browser's `localStorage`.
+By default the app is **local-only**: no backend, no sign-in, no Supabase connection, and all data lives in your browser's `localStorage`. Optional accounts (sign-in, enrolment in a verified course, sync across devices, import, export and account deletion) are built but **switched off by default** behind a feature flag; see "Accounts" below.
 
 ## Quick start
 
@@ -18,7 +18,7 @@ npm run build      # production build to dist/
 
 ## Deploy to Vercel
 
-The repo includes `vercel.json` (Vite framework preset, `dist` output, SPA rewrite so deep links like `/subjects/p6` work on refresh, long-term caching for hashed assets, a Content-Security-Policy and a few security headers). No environment variables are needed: accounts are off by default (see below).
+The repo includes `vercel.json` (Vite framework preset, `dist` output, SPA rewrite so deep links like `/subjects/p6` work on refresh, long-term caching for hashed assets, a Content-Security-Policy and a few security headers). No environment variables are needed to run the local-mode app: accounts are off by default (see below). **Vercel Preview deployments are local mode only** and must not be given Supabase variables. Enabling accounts on Production is a separate, gated process: `docs/deployment/production-launch-runbook.md`. Operations: `docs/deployment/production-supabase-recovery.md` (paused or unavailable Supabase, backups) and `docs/deployment/account-export-restoration.md` (what an account export can and cannot restore).
 
 1. Push the repo to GitHub.
 2. In Vercel choose **Add New → Project**, import the repo and keep the detected settings (build `npm run build`, output `dist`).
@@ -46,8 +46,11 @@ npm run dev
 ```
 
 Every `VITE_` variable is public (it is compiled into the bundle), so never put a secret there; `npm run guard:secrets` enforces that.
-Signing in does **not** sync study data yet: your progress stays in this browser, and nothing is uploaded or deleted by signing in or
-out. The design, security decisions and the hosted-project checklist are in `docs/architecture/m6-auth-review.md`.
+With accounts on, study data for the signed-in account is saved to the account and synced; the data already in this browser from local mode
+is separate, is never uploaded automatically, and moves only through the explicit import wizard. Signing in or out never uploads or deletes it.
+The Content-Security-Policy in `vercel.json` currently allows no Supabase origin, so a deployed site needs the project's exact origin added
+before accounts are enabled (see the runbook). Design and security decisions: `docs/architecture/m6-auth-review.md`, `docs/architecture/m7-m8-review.md`,
+`docs/architecture/m9-account-management-review.md`, `docs/architecture/m10-sync-performance-review.md`. Database: `supabase/README.md`.
 
 ## Stack
 
@@ -146,7 +149,7 @@ Press `Cmd+K` or `Ctrl+K` anywhere for global search across pages, subjects, cha
 ## Known limitations
 
 - Forms use plain controlled inputs with manual validation, not React Hook Form or Zod, to avoid adding dependencies.
-- Study data is not stored on a server. Account sign-in exists behind a feature flag (off by default) but does not sync anything yet: progress, timer and settings live only in this browser until the sync milestone.
+- By default study data is not stored on a server. With the account feature flag on, records sync to the signed-in account (the running timer and the picture stay on the device). The flag is off by default and no hosted project exists yet.
 - History older than the seeded 90 days does not exist until you log your own sessions.
 - Data saved by the previous version keeps its original (unreconciled) demo totals. Use Settings → Reset demo data for a fully consistent sample, or keep your data as it is.
 - Profile photos are resized to 128 px and capped at about 60 KB; very large originals (over 8 MB) are rejected.
