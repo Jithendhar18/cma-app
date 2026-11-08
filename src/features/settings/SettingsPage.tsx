@@ -12,14 +12,20 @@ import { todayISO } from '@/lib/dates';
 import { applyImportExtras, buildExport } from '@/features/settings/dataTransfer';
 import { cn } from '@/lib/cn';
 import { useStudyStore } from '@/stores/studyStore';
+import { useAccountMode } from '@/features/account/accountContext';
+import { EnrollmentSection } from '@/features/account/EnrollmentSection';
 import { useTimerStore } from '@/stores/timerStore';
 import type { PaperGroup, Settings, ThemeMode } from '@/types/study';
+
+/** In account mode the course, attempt and groups come from the enrolment, so they are shown but not typed in. */
+const useIsAccount = () => useAccountMode().mode === 'account';
 
 export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader title="Settings" subtitle="Profile, study preferences, examination and data." />
       <ProfileSection />
+      <EnrollmentSection />
       <PreferencesSection />
       <ExamSection />
       <AppearanceSection />
@@ -52,6 +58,7 @@ function useSaved() {
 }
 
 function ProfileSection() {
+  const isAccount = useIsAccount();
   const settings = useStudyStore((s) => s.settings);
   const update = useStudyStore((s) => s.updateSettings);
   const [name, setName] = useState(settings.name);
@@ -66,7 +73,7 @@ function ProfileSection() {
     e.preventDefault();
     if (!name.trim()) return setError('Name is required.');
     setError('');
-    update({ name: name.trim(), course: course.trim(), examAttempt: attempt.trim() });
+    update(isAccount ? { name: name.trim() } : { name: name.trim(), course: course.trim(), examAttempt: attempt.trim() });
     flash();
   };
 
@@ -96,8 +103,8 @@ function ProfileSection() {
       </div>
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
         <Field label="Name" htmlFor="st-name" error={error}><input id="st-name" className={fieldClass} value={name} onChange={(e) => setName(e.target.value)} /></Field>
-        <Field label="Course" htmlFor="st-course"><input id="st-course" className={fieldClass} value={course} onChange={(e) => setCourse(e.target.value)} /></Field>
-        <Field label="Attempt" htmlFor="st-attempt"><input id="st-attempt" className={fieldClass} value={attempt} onChange={(e) => setAttempt(e.target.value)} /></Field>
+        <Field label="Course" htmlFor="st-course"><input id="st-course" className={fieldClass} value={isAccount ? settings.course : course} disabled={isAccount} onChange={(e) => setCourse(e.target.value)} /></Field>
+        <Field label="Attempt" htmlFor="st-attempt"><input id="st-attempt" className={fieldClass} value={isAccount ? settings.examAttempt : attempt} disabled={isAccount} onChange={(e) => setAttempt(e.target.value)} /></Field>
         <div className="flex items-end gap-3"><Button type="submit" variant="primary">Save profile</Button><SavedNote show={saved} /></div>
       </form>
     </Card>
@@ -162,6 +169,7 @@ function PreferencesSection() {
 }
 
 function ExamSection() {
+  const isAccount = useIsAccount();
   const settings = useStudyStore((s) => s.settings);
   const update = useStudyStore((s) => s.updateSettings);
   const [examDate, setExamDate] = useState(settings.examDate);
@@ -174,17 +182,18 @@ function ExamSection() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!examDate) return setError('Choose an exam date.');
-    if (finalRev > examDate) return setError('Final revision date must be on or before the exam date.');
-    if (groups.length === 0) return setError('Select at least one group.');
+    if (!isAccount && !examDate) return setError('Choose an exam date.');
+    if (examDate && finalRev && finalRev > examDate) return setError('Final revision date must be on or before the exam date.');
+    if (!isAccount && groups.length === 0) return setError('Select at least one group.');
     setError('');
-    update({ examDate, finalRevisionDate: finalRev, examGroups: groups, examDateIsSample: examDate === settings.examDate ? settings.examDateIsSample : false });
+    // In account mode the groups come from the enrolment and are changed there; only the dates are edited here.
+    update(isAccount ? { examDate, finalRevisionDate: finalRev } : { examDate, finalRevisionDate: finalRev, examGroups: groups, examDateIsSample: examDate === settings.examDate ? settings.examDateIsSample : false });
     flash();
   };
 
   return (
     <Card>
-      <CardHeader title="Examination" description="The exam date below is a placeholder. Set it once ICMAI publishes the official date." />
+      <CardHeader title="Examination" description={isAccount ? 'The official exam date appears here once it is announced. You can set your own dates below; they are saved to your account and apply to this enrolment. The official date is never changed.' : 'The exam date below is a placeholder. Set it once ICMAI publishes the official date.'} />
       <form onSubmit={submit} className="space-y-4" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Attempt" htmlFor="ex-attempt"><input id="ex-attempt" disabled className={fieldClass} value={settings.examAttempt} /></Field>
@@ -196,7 +205,7 @@ function ExamSection() {
           <div className="flex gap-4">
             {(['Group I', 'Group II'] as PaperGroup[]).map((g) => (
               <label key={g} className="flex items-center gap-2 text-[13px] text-ink">
-                <input type="checkbox" checked={groups.includes(g)} onChange={() => toggle(g)} className="size-4 accent-violet-500" /> {g}
+                <input type="checkbox" checked={(isAccount ? settings.examGroups : groups).includes(g)} disabled={isAccount} onChange={() => toggle(g)} className="size-4 accent-violet-500" /> {g}
               </label>
             ))}
           </div>
@@ -232,6 +241,7 @@ function AppearanceSection() {
 }
 
 function DataSection() {
+  const isAccount = useIsAccount();
   const importData = useStudyStore((s) => s.importData);
   const reset = useStudyStore((s) => s.resetDemoData);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -265,13 +275,14 @@ function DataSection() {
 
   return (
     <Card>
-      <CardHeader title="Data" description="Everything is stored locally in this browser." />
+      <CardHeader title="Data" description={isAccount ? 'Your study records, name, targets, preferences and exam dates are saved to your account. The picture you upload stays on this device.' : 'Everything is stored locally in this browser.'} />
       <div className="flex flex-wrap gap-3">
         <Button icon={<Download className="size-4" />} onClick={exportData}>Export data</Button>
-        <Button icon={<Upload className="size-4" />} onClick={() => fileRef.current?.click()}>Import data</Button>
+        <Button icon={<Upload className="size-4" />} onClick={() => fileRef.current?.click()} disabled={isAccount}>Import data</Button>
         <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" aria-label="Import data file" onChange={(e) => { void onImport(e.target.files?.[0]); e.target.value = ''; }} />
-        <Button variant="danger" icon={<Trash2 className="size-4" />} onClick={() => setConfirmReset(true)}>Reset demo data</Button>
+        <Button variant="danger" icon={<Trash2 className="size-4" />} onClick={() => setConfirmReset(true)} disabled={isAccount}>Reset demo data</Button>
       </div>
+      {isAccount && <p className="mt-3 text-[12px] text-ink-3">Importing a file and resetting to demo data are not available for your account yet: both would replace your account data with sample data. Importing a backup into your account arrives in a later update. Your local data on this device is unchanged.</p>}
       {message && <p role={message.tone === 'error' ? 'alert' : 'status'} className={cn('mt-4 text-[13px]', message.tone === 'error' ? 'text-red-500' : 'text-emerald-500')}>{message.text}</p>}
       <Sheet open={confirmReset} onClose={() => setConfirmReset(false)} title="Reset to demo data?" description="This replaces all sessions, chapters, revisions and settings with the sample data."
         footer={<><Button onClick={() => setConfirmReset(false)}>Cancel</Button><Button variant="danger" onClick={() => { reset(); useTimerStore.getState().reset(); setConfirmReset(false); setMessage({ tone: 'ok', text: 'Demo data restored.' }); }}>Reset everything</Button></>}>

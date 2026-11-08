@@ -1,4 +1,5 @@
-export type PaperGroup = 'Group I' | 'Group II';
+/** The two Intermediate groups, but any group name the database publishes is accepted (the `string & {}` keeps autocompletion). */
+export type PaperGroup = 'Group I' | 'Group II' | (string & {});
 
 export type ChapterStatus =
   | 'not_started'
@@ -20,6 +21,8 @@ export type ThemeMode = 'dark' | 'light' | 'system';
 
 export interface Subject {
   id: string;
+  /** URL segment for the subject page. Bundled subjects use their id ('p5'); account subjects use the database slug. */
+  slug?: string;
   paperNumber: number;
   name: string;
   shortName: string;

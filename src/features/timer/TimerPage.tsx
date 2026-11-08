@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { fieldClass, labelClass } from '@/components/ui/field';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { useNow } from '@/hooks/useTimerEngine';
 import { useStudyLog } from '@/hooks/useStudyData';
 import { cn } from '@/lib/cn';
@@ -19,6 +19,7 @@ const RING = 300;
 const STROKE = 10;
 
 export default function TimerPage() {
+  const { subjects: curriculumSubjects } = useCurriculum();
   const timer = useTimerStore();
   const settings = useStudyStore((s) => s.settings);
   const chapters = useStudyStore((s) => s.chapters);
@@ -136,7 +137,7 @@ export default function TimerPage() {
               <div>
                 <label htmlFor="t-subject" className={labelClass}>Subject</label>
                 <select id="t-subject" className={fieldClass} value={timer.subjectId} disabled={locked} onChange={(e) => onSubject(e.target.value)}>
-                  {SUBJECTS.map((s) => <option key={s.id} value={s.id}>Paper {s.paperNumber} · {s.shortName}</option>)}
+                  {curriculumSubjects.map((s) => <option key={s.id} value={s.id}>Paper {s.paperNumber} · {s.shortName}</option>)}
                 </select>
               </div>
               <div>

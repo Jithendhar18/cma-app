@@ -1,6 +1,6 @@
-import { SUBJECTS } from '@/data/subjects';
+import { BUNDLED_CURRICULUM } from '@/lib/curriculum/bundled';
 import { studyStreak, subjectStats, totalMinutes } from '@/lib/analytics';
-import type { Chapter, FocusRecord, PracticeRecord, RevisionTask, StudyLog } from '@/types/study';
+import type { Chapter, FocusRecord, PracticeRecord, RevisionTask, StudyLog, Subject } from '@/types/study';
 
 export interface AchievementInput {
   focusLog: FocusRecord[];
@@ -9,6 +9,8 @@ export interface AchievementInput {
   revisions: RevisionTask[];
   practiceLog: PracticeRecord[];
   today: string;
+  /** The subjects of the curriculum in effect. Defaults to the bundled sample (local mode, and the original unit tests). */
+  subjects?: Subject[];
 }
 
 export interface Badge {
@@ -50,11 +52,12 @@ export function longestStreak(log: StudyLog): number {
 
 export function computeProgress(input: AchievementInput): Progress {
   const { focusLog, studyLog, chapters, revisions, practiceLog, today } = input;
+  const subjects = input.subjects ?? BUNDLED_CURRICULUM.subjects;
   const hours = totalMinutes(studyLog) / 60;
   const revisionsDone = revisions.filter((r) => r.completedOn).length;
   const questions = practiceLog.reduce((s, p) => s + p.questions, 0);
   const doneChapters = chapters.filter((c) => ['completed', 'revision_due', 'exam_ready'].includes(c.status)).length;
-  const subjectsDone = SUBJECTS.filter((s) => {
+  const subjectsDone = subjects.filter((s) => {
     const st = subjectStats(s.id, chapters, revisions);
     return st.total > 0 && st.done === st.total;
   }).length;

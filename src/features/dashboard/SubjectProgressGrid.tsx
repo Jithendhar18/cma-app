@@ -4,22 +4,23 @@ import { AlertTriangle, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { subjectStats } from '@/lib/analytics';
 import { formatPercent } from '@/lib/format';
 import { useStudyStore } from '@/stores/studyStore';
 
 export function SubjectProgressGrid() {
+  const { subjects: curriculumSubjects } = useCurriculum();
   const chapters = useStudyStore((s) => s.chapters);
   const revisions = useStudyStore((s) => s.revisions);
   const rows = useMemo(
     () =>
-      SUBJECTS.map((subject) => ({
+      curriculumSubjects.map((subject) => ({
         subject,
         stats: subjectStats(subject.id, chapters, revisions),
         weak: chapters.filter((c) => c.subjectId === subject.id && c.status !== 'not_started' && c.confidence <= 2).length,
       })),
-    [chapters, revisions],
+    [chapters, revisions, curriculumSubjects],
   );
 
   return (
@@ -44,7 +45,7 @@ export function SubjectProgressGrid() {
                 <Badge tone="emerald">On track</Badge>
               )}
             </div>
-            <Link to={`/subjects/${subject.id}`} className="mt-3 inline-flex items-center gap-1 text-[12px] font-medium text-violet-500 hover:underline">
+            <Link to={`/subjects/${subject.slug ?? subject.id}`} className="mt-3 inline-flex items-center gap-1 text-[12px] font-medium text-violet-500 hover:underline">
               Continue <ArrowRight className="size-3.5" />
             </Link>
           </Card>

@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Tabs } from '@/components/ui/Tabs';
 import { fieldClass } from '@/components/ui/field';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { PRIORITY_ORDER, revisionBucket, type RevisionBucket } from '@/lib/analytics';
 import { addDaysISO, formatShortDate, todayISO } from '@/lib/dates';
 import { REVISION_LABEL } from '@/lib/selectors';
@@ -23,6 +23,7 @@ const TABS: Array<{ id: RevisionBucket; label: string }> = [
 ];
 
 export default function RevisionsPage() {
+  const { subjects: curriculumSubjects } = useCurriculum();
   const today = todayISO();
   const revisions = useStudyStore((s) => s.revisions);
   const chapters = useStudyStore((s) => s.chapters);
@@ -50,7 +51,7 @@ export default function RevisionsPage() {
         ) : (
           <ul className="divide-y">
             {list.map((r) => (
-              <RevisionRow key={r.id} task={r} title={chapters.find((c) => c.id === r.chapterId)?.title ?? ''} subject={SUBJECTS.find((s) => s.id === chapters.find((c) => c.id === r.chapterId)?.subjectId)?.shortName ?? ''} today={today} />
+              <RevisionRow key={r.id} task={r} title={chapters.find((c) => c.id === r.chapterId)?.title ?? ''} subject={curriculumSubjects.find((s) => s.id === chapters.find((c) => c.id === r.chapterId)?.subjectId)?.shortName ?? ''} today={today} />
             ))}
           </ul>
         )}

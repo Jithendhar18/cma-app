@@ -2,12 +2,12 @@ import { Link } from 'react-router-dom';
 import { CalendarClock } from 'lucide-react';
 import { daysUntil } from '@/lib/analytics';
 import { formatShortDate, todayISO } from '@/lib/dates';
-import { useStudyStore } from '@/stores/studyStore';
+import { useShellIdentity } from '@/features/account/useShellIdentity';
 
 export function ExamCountdownWidget() {
-  const examDate = useStudyStore((state) => state.settings.examDate);
-  const isSample = useStudyStore((state) => state.settings.examDateIsSample);
-  const days = daysUntil(examDate, todayISO());
+  const { examDate, examDateIsSample: isSample } = useShellIdentity();
+  const hasDate = examDate !== ''; // empty means "not announced" (account mode), never a guessed date
+  const days = hasDate ? daysUntil(examDate, todayISO()) : 0;
 
   return (
     <Link
@@ -19,11 +19,11 @@ export function ExamCountdownWidget() {
         Exam countdown
       </div>
       <p className="mt-1.5 text-[20px] font-semibold leading-none text-ink">
-        {days > 0 ? `${days} days` : 'Exam day passed'}
+        {!hasDate ? 'Date not announced' : days > 0 ? `${days} days` : 'Exam day passed'}
       </p>
       <p className="mt-1 text-[11px] text-ink-3">
-        {formatShortDate(examDate)}
-        {isSample ? ' (sample date)' : ''}
+        {hasDate ? formatShortDate(examDate) : 'No official date yet'}
+        {hasDate && isSample ? ' (sample date)' : ''}
       </p>
     </Link>
   );

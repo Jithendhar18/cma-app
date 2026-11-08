@@ -6,7 +6,7 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { Tabs } from '@/components/ui/Tabs';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { useStudyLog } from '@/hooks/useStudyData';
 import { averageAccuracy, consistencyScore, minutesBySubject, mockPercent, plannedMinutesByDate, RANGE_OPTIONS, rangeDates, studyStreak, weakSubjects, type RangeKey } from '@/lib/analytics';
 import { AXIS_TICK, GRID_STROKE, SUBJECT_COLORS } from '@/lib/chartTheme';
@@ -34,6 +34,7 @@ function ChartTip({ active, payload, label, unit }: { active?: boolean; payload?
 }
 
 export default function AnalyticsPage() {
+  const { subjects: curriculumSubjects } = useCurriculum();
   const today = todayISO();
   const [range, setRange] = useState<RangeKey>('30d');
   const studyLog = useStudyLog();
@@ -58,7 +59,7 @@ export default function AnalyticsPage() {
       : dates.map((d) => ({ label: formatShortDate(d), hours: (studyLog[d] ?? 0) / 60, target: target / 60 }));
 
     const bySubject = minutesBySubject(focusLog, dateSet);
-    const subjectData = SUBJECTS.map((s, i) => ({ name: s.shortName, value: (bySubject[s.id] ?? 0) / 60, color: SUBJECT_COLORS[i] })).filter((d) => d.value > 0);
+    const subjectData = curriculumSubjects.map((s, i) => ({ name: s.shortName, value: (bySubject[s.id] ?? 0) / 60, color: SUBJECT_COLORS[i] })).filter((d) => d.value > 0);
 
     const months = new Map<string, number>();
     Object.entries(studyLog).forEach(([d, m]) => months.set(d.slice(0, 7), (months.get(d.slice(0, 7)) ?? 0) + m));
@@ -81,11 +82,11 @@ export default function AnalyticsPage() {
       weeklyAvg: total / Math.max(1, dates.length / 7),
       consistency: consistencyScore(studyLog, dates, target),
     };
-  }, [dates, dateSet, studyLog, focusLog, sessions, chapters, mockExams, revisions, target, today]);
+  }, [dates, dateSet, studyLog, focusLog, sessions, chapters, mockExams, revisions, target, today, curriculumSubjects]);
 
   const practiceInRange = useStudyStore((s) => s.practiceLog).filter((p) => dateSet.has(p.date));
   const rangeAccuracy = practiceInRange.length ? (practiceInRange.reduce((s, p) => s + p.correct, 0) / practiceInRange.reduce((s, p) => s + p.questions, 0)) * 100 : averageAccuracy(chapters);
-  const weak = useMemo(() => weakSubjects(SUBJECTS, chapters, revisions), [chapters, revisions]);
+  const weak = useMemo(() => weakSubjects(curriculumSubjects, chapters, revisions), [chapters, revisions, curriculumSubjects]);
   const streak = studyStreak(studyLog, today);
   const noData = data.total === 0;
 

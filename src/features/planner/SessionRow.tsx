@@ -1,7 +1,7 @@
 import { Check, Pencil, Play, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { useStartSession } from '@/features/timer/useStartSession';
 import { effectiveSessionStatus } from '@/lib/analytics';
 import { formatTime12h, todayISO } from '@/lib/dates';
@@ -11,12 +11,13 @@ import { useStudyStore } from '@/stores/studyStore';
 import type { StudySession } from '@/types/study';
 
 export function SessionRow({ session, onEdit, compact = false }: { session: StudySession; onEdit: (s: StudySession) => void; compact?: boolean }) {
+  const { subjects: curriculumSubjects } = useCurriculum();
   const chapter = useStudyStore((s) => s.chapters).find((c) => c.id === session.chapterId);
   const setStatus = useStudyStore((s) => s.setSessionStatus);
   const start = useStartSession();
   const status = effectiveSessionStatus(session, todayISO());
   const meta = SESSION_STATUS_META[status];
-  const subject = SUBJECTS.find((s) => s.id === session.subjectId);
+  const subject = curriculumSubjects.find((s) => s.id === session.subjectId);
   const done = status === 'completed';
 
   return (

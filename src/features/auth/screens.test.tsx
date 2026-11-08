@@ -501,14 +501,16 @@ describe('the account screen', () => {
     expect(screen.getByText('Asha')).toBeTruthy();
   });
 
-  it('offers no account deletion and no enrolment or curriculum selection (later milestones)', async () => {
+  it('offers no account deletion, import, upload or sync control (account deletion and import are later milestones)', async () => {
     signedInAs();
     startApp('/account');
     await screen.findByText('Asha');
-    // Controls only: the page may say that sync and onboarding are coming, but must not offer them yet.
+    // Controls only. (Since M7 this page also has the "which study data" switch, whose text mentions the enrolment, and enrolment itself is
+    // managed in Settings; so the check is now on what this page still must not offer: deletion, import and upload.)
     const controls = [...document.querySelectorAll('main button, main a')].map((el) => el.textContent ?? '').join(' | ');
-    expect(controls).not.toMatch(/delete|remove (my )?account|enrol|course|attempt|syllabus|import|upload|sync now/i);
-    expect(document.querySelector('main select, main input[type="radio"]')).toBeNull();
+    expect(controls).not.toMatch(/delete|remove (my )?account|import|upload|sync now/i);
+    expect(document.querySelector('main select')).toBeNull();
+    expect(document.querySelector('main input[type="file"]')).toBeNull();
   });
 });
 

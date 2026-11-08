@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Tabs } from '@/components/ui/Tabs';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { subjectStats } from '@/lib/analytics';
 import { formatHours, formatPercent } from '@/lib/format';
 import { useStudyStore } from '@/stores/studyStore';
@@ -17,6 +17,10 @@ const TABS = [
 type GroupTab = (typeof TABS)[number]['id'];
 
 export default function SubjectsPage() {
+  const { subjects: curriculumSubjects, groups } = useCurriculum();
+  // The two tabs are the first and second group of whatever curriculum is showing (Group I and Group II for CMA Intermediate).
+  const firstGroup = groups[0]?.name ?? 'Group I';
+  const secondGroup = groups[1]?.name ?? 'Group II';
   const [params, setParams] = useSearchParams();
   const tab = (TABS.find((t) => t.id === params.get('group'))?.id ?? 'all') as GroupTab;
   const chapters = useStudyStore((s) => s.chapters);
@@ -24,11 +28,11 @@ export default function SubjectsPage() {
 
   const rows = useMemo(
     () =>
-      SUBJECTS.filter((s) => tab === 'all' || (tab === 'g1' ? s.group === 'Group I' : s.group === 'Group II')).map((subject) => ({
+      curriculumSubjects.filter((s) => tab === 'all' || (tab === 'g1' ? s.group === firstGroup : s.group === secondGroup)).map((subject) => ({
         subject,
         stats: subjectStats(subject.id, chapters, revisions),
       })),
-    [tab, chapters, revisions],
+    [tab, chapters, revisions, curriculumSubjects, firstGroup, secondGroup],
   );
 
   return (
@@ -37,7 +41,7 @@ export default function SubjectsPage() {
       <Tabs label="Group" tabs={TABS.map((t) => ({ ...t }))} active={tab} onChange={(id) => setParams(id === 'all' ? {} : { group: id })} />
       <div className="grid gap-4 md:grid-cols-2">
         {rows.map(({ subject, stats }) => (
-          <Link key={subject.id} to={`/subjects/${subject.id}`} className="group block rounded-xl">
+          <Link key={subject.id} to={`/subjects/${subject.slug ?? subject.id}`} className="group block rounded-xl">
             <Card className="h-full transition-colors group-hover:border-violet-500/40">
               <p className="text-[11px] font-medium uppercase tracking-wider text-ink-3">Paper {subject.paperNumber} · {subject.group}</p>
               <h2 className="mt-1 text-[16px] font-semibold text-ink">{subject.name}</h2>

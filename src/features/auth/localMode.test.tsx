@@ -159,8 +159,14 @@ describe('feature flag ON: local data is never touched', () => {
     await signIn(A, 'asha@example.test');
     expect(await screen.findByText('Asha')).toBeTruthy();
     expect(snapshot()).toEqual(before);
-    // Every table operation is a read of the two account tables: nothing about study data goes anywhere.
-    expect(fake.tableCalls.every((c) => c.operation === 'select' && (c.table === 'profiles' || c.table === 'user_settings'))).toBe(true);
+    // Every table operation is a READ: nothing about study data goes anywhere. (Since M7, signing in also reads the student's enrolment and
+    // the shared course records it refers to, so the read set is wider than the two account tables; the invariant is "reads only, and only
+    // account and shared-curriculum tables, never a personal study table".)
+    const READ_TABLES = ['profiles', 'user_settings', 'student_enrollments', 'enrollment_groups', 'course_syllabus_versions', 'courses', 'syllabus_versions', 'exam_attempts', 'subject_groups'];
+    expect(fake.tableCalls.length).toBeGreaterThan(0);
+    expect(fake.tableCalls.every((c) => c.operation === 'select' && READ_TABLES.includes(c.table))).toBe(true);
+    const STUDY_TABLES = ['chapter_progress', 'planner_sessions', 'study_sessions', 'revisions', 'practice_records', 'mock_tests'];
+    expect(fake.tableCalls.some((c) => STUDY_TABLES.includes(c.table))).toBe(false);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

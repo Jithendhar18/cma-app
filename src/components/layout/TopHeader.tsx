@@ -6,12 +6,13 @@ import { Avatar } from '@/components/layout/Sidebar';
 import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
 import { AccountEntry } from '@/features/auth/AccountEntry';
 import { formatLongDate, todayISO } from '@/lib/dates';
-import { useStudyStore } from '@/stores/studyStore';
+import { useShellIdentity } from '@/features/account/useShellIdentity';
+import { SyncChip } from '@/features/sync/SyncChip';
 
 export function TopHeader() {
   const { pathname } = useLocation();
   const item = findNavItem(pathname);
-  const name = useStudyStore((state) => state.settings.name);
+  const { name } = useShellIdentity();
   const openPalette = useUiStore((state) => state.setPaletteOpen);
   const isSubjectDetail = pathname.startsWith('/subjects/');
 
@@ -41,6 +42,7 @@ export function TopHeader() {
           <ThemeSwitcher />
         </div>
         <AccountEntry />
+        <SyncChip />
         <Link to="/settings" aria-label={`Settings for ${name}`} className="rounded-full ring-offset-canvas">
           <Avatar name={name} />
         </Link>

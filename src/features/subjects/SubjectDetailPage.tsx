@@ -2,7 +2,7 @@ import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Tabs } from '@/components/ui/Tabs';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { ChaptersTab } from '@/features/subjects/ChaptersTab';
 import { NotesTab } from '@/features/subjects/NotesTab';
 import { OverviewTab } from '@/features/subjects/OverviewTab';
@@ -21,7 +21,9 @@ type TabId = (typeof TABS)[number]['id'];
 export default function SubjectDetailPage() {
   const { subjectId } = useParams();
   const [params, setParams] = useSearchParams();
-  const subject = SUBJECTS.find((s) => s.id === subjectId);
+  const { subjectBySlug } = useCurriculum();
+  // The URL carries the slug (account mode) or the id (local mode, as before); either finds the subject.
+  const subject = subjectBySlug(subjectId ?? '');
   if (!subject) return <Navigate to="/subjects" replace />;
 
   const tab = (TABS.find((t) => t.id === params.get('tab'))?.id ?? 'overview') as TabId;

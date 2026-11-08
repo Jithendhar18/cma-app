@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CornerDownLeft, Search } from 'lucide-react';
 import { buildSearchIndex, searchItems, type SearchItem } from '@/lib/search';
-import { demoLibraryAdapter } from '@/data/library';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { useStudyStore } from '@/stores/studyStore';
 import { useUiStore } from '@/stores/uiStore';
 import { cn } from '@/lib/cn';
@@ -28,6 +28,7 @@ export function CommandPalette() {
 }
 
 function PaletteDialog({ onClose }: { onClose: () => void }) {
+  const { subjects, library: adapter } = useCurriculum();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -41,15 +42,15 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     let alive = true;
-    demoLibraryAdapter.load().then((sources) => alive && setLibrary(sources)).catch(() => undefined);
+    adapter.load().then((sources) => alive && setLibrary(sources)).catch(() => undefined);
     return () => {
       alive = false;
     };
-  }, []);
+  }, [adapter]);
 
   const index = useMemo(
-    () => buildSearchIndex({ settings, chapters, sessions, revisions, focusLog: [], mockExams: [], practiceLog: [], meta: { seedAnchor: null } }, library),
-    [settings, chapters, sessions, revisions, library],
+    () => buildSearchIndex({ settings, chapters, sessions, revisions, focusLog: [], mockExams: [], practiceLog: [], meta: { seedAnchor: null } }, library, subjects),
+    [settings, chapters, sessions, revisions, library, subjects],
   );
   const results = useMemo(() => searchItems(index, query), [index, query]);
 

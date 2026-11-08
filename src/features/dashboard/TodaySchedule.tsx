@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { effectiveSessionStatus } from '@/lib/analytics';
 import { formatTime12h, todayISO } from '@/lib/dates';
 import { formatDuration } from '@/lib/format';
@@ -13,6 +13,7 @@ import { useStartSession } from '@/features/timer/useStartSession';
 import { useStudyStore } from '@/stores/studyStore';
 
 export function TodaySchedule() {
+  const { subjects: curriculumSubjects } = useCurriculum();
   const navigate = useNavigate();
   const startSession = useStartSession();
   const today = todayISO();
@@ -34,7 +35,7 @@ export function TodaySchedule() {
           {todays.map((session) => {
             const status = effectiveSessionStatus(session, today);
             const meta = SESSION_STATUS_META[status];
-            const subject = SUBJECTS.find((s) => s.id === session.subjectId);
+            const subject = curriculumSubjects.find((s) => s.id === session.subjectId);
             const chapter = chapters.find((c) => c.id === session.chapterId);
             return (
               <li key={session.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">

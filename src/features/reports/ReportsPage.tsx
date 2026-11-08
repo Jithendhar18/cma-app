@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { useStudyLog } from '@/hooks/useStudyData';
 import { effectiveSessionStatus, mockPercent, minutesBySubject, weakAreas } from '@/lib/analytics';
 import { addDaysISO, formatShortDate, formatWeekday, todayISO, weekDatesISO } from '@/lib/dates';
@@ -13,6 +13,7 @@ import { formatMinutes, formatPercent } from '@/lib/format';
 import { useStudyStore } from '@/stores/studyStore';
 
 export default function ReportsPage() {
+  const { subjects: curriculumSubjects } = useCurriculum();
   const today = todayISO();
   const [anchor, setAnchor] = useState(today);
   const studyLog = useStudyLog();
@@ -33,7 +34,7 @@ export default function ReportsPage() {
     const doneChapters = chapters.filter((c) => c.completedOn && set.has(c.completedOn));
     const revDone = revisions.filter((r) => r.completedOn && set.has(r.completedOn)).length;
     const mocks = mockExams.filter((m) => set.has(m.date));
-    const weak = weakAreas(chapters, SUBJECTS, 3);
+    const weak = weakAreas(chapters, curriculumSubjects, 3);
     const avg = elapsed.length ? total / elapsed.length : 0;
     const weeklyTarget = settings.weeklyTargetHours * 60;
 
@@ -47,10 +48,10 @@ export default function ReportsPage() {
     if (tips.length === 0) tips.push('Strong week. Keep the same rhythm and add a mock test.');
 
     return { dates, total, avg, bySubject, questions, correct, missedDays, missedSessions, doneChapters, revDone, mocks, weak, tips, weeklyTarget, target };
-  }, [anchor, today, studyLog, settings, focusLog, practiceLog, chapters, revisions, mockExams, sessions]);
+  }, [anchor, today, studyLog, settings, focusLog, practiceLog, chapters, revisions, mockExams, sessions, curriculumSubjects]);
 
   const isCurrent = report.dates.includes(today);
-  const subjectRows = SUBJECTS.map((s) => ({ s, m: report.bySubject[s.id] ?? 0 })).filter((r) => r.m > 0).sort((a, b) => b.m - a.m);
+  const subjectRows = curriculumSubjects.map((s) => ({ s, m: report.bySubject[s.id] ?? 0 })).filter((r) => r.m > 0).sort((a, b) => b.m - a.m);
 
   return (
     <div className="space-y-6">
@@ -110,7 +111,7 @@ export default function ReportsPage() {
           {report.mocks.length === 0 ? <p className="text-[13px] text-ink-2">No mock exams this week.</p> : (
             <ul className="divide-y">
               {report.mocks.map((m) => (
-                <li key={m.id} className="flex justify-between py-2 text-[13px]"><span className="text-ink">{SUBJECTS.find((s) => s.id === m.subjectId)?.shortName} · {m.name}</span><span className="font-semibold text-ink">{formatPercent(mockPercent(m))}</span></li>
+                <li key={m.id} className="flex justify-between py-2 text-[13px]"><span className="text-ink">{curriculumSubjects.find((s) => s.id === m.subjectId)?.shortName} · {m.name}</span><span className="font-semibold text-ink">{formatPercent(mockPercent(m))}</span></li>
               ))}
             </ul>
           )}
