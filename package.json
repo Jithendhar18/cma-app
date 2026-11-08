@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "curriculum:validate": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/curriculum/cli.ts validate",
-    "curriculum:sql": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/curriculum/cli.ts sql"
+    "curriculum:sql": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/curriculum/cli.ts sql",
+    "guard:secrets": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/ci/guard-secrets-cli.ts"
   },
   "dependencies": {
     "framer-motion": "^14.9.1",

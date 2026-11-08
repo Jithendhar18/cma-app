@@ -1,0 +1,8 @@
+# Keeps the commit-pinned GitHub Actions current. Pins are SHAs, so updates arrive as reviewable pull requests.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

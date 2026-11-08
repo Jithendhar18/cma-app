@@ -1,0 +1,127 @@
+name: Database
+
+# Validates curriculum bundles, migrations, row level security and the importer against a THROWAWAY local
+# Supabase stack started inside the runner. It never contacts a hosted project and uses no secrets.
+# Applying migrations to a hosted project is a manual maintainer task (see docs/architecture/rls-security.md).
+
+on:
+  # Always runs for every pull request into main, so the checks always exist and can be required in
+  # branch protection. (A workflow skipped by a path filter would leave a required check pending forever.)
+  pull_request:
+    branches: [main]
+  # Feature-branch pushes are covered by their pull request; only main itself runs on push.
+  push:
+    branches: [main]
+  # Allows a manual run of the same checks from the Actions tab.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  curriculum:
+    name: Curriculum bundles and importer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Importer unit tests
+        run: npx vitest run scripts/curriculum
+
+      - name: Validate the fake fixture bundle
+        run: npm run curriculum:validate -- scripts/curriculum/__fixtures__/fake-bundle/bundle
+
+      # The fixture must be impossible to turn into student-facing SQL by accident.
+      - name: Refuse to generate SQL for a fake bundle
+        run: |
+          set +e
+          npm run curriculum:sql -- scripts/curriculum/__fixtures__/fake-bundle/bundle --out "$RUNNER_TEMP/fake.sql"
+          code=$?
+          set -e
+          if [ "$code" -ne 3 ]; then echo "expected the CLI to refuse a fake bundle (exit 3), got $code"; exit 1; fi
+          if [ -e "$RUNNER_TEMP/fake.sql" ]; then echo "a fake bundle produced a SQL file"; exit 1; fi
+
+      - name: Validate every real bundle that exists
+        run: |
+          shopt -s nullglob
+          found=0
+          for dir in supabase/curriculum/bundles/*/; do
+            found=1
+            npm run curriculum:validate -- "${dir%/}"
+            npm run curriculum:sql -- "${dir%/}" --out "$RUNNER_TEMP/$(basename "$dir").sql"
+          done
+          if [ "$found" -eq 0 ]; then echo "no real bundle yet (expected until curriculum is verified)"; fi
+
+  database:
+    name: Migrations, RLS and importer (local Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Confirm no hosted-project credential is present
+        run: |
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_SERVICE_ROLE_KEY PGPASSWORD; do
+            if [ -n "$(printenv "$name")" ]; then echo "$name must not be set in this job"; exit 1; fi
+          done
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with:
+          version: 3.0.0
+
+      - name: Check tools
+        run: |
+          supabase --version
+          psql --version
+          docker --version
+
+      - name: Start the local Supabase stack
+        run: supabase start
+
+      - name: Rebuild the database from migrations
+        run: supabase db reset
+
+      - name: Database tests (pgTAP)
+        run: supabase test db
+
+      - name: Lint the schema
+        run: supabase db lint --schema public --level warning
+
+      - name: Importer against the real database (fake fixture, rolled back)
+        run: bash scripts/db/test-importer.sh
+
+      - name: Stop the local stack
+        if: always()
+        run: supabase stop --no-backup

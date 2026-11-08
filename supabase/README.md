@@ -14,7 +14,7 @@ Requires Docker and Node 22.12+. Use the pinned CLI (it is deliberately not an a
 npx supabase@3.0.0 start        # first run pulls Docker images
 npx supabase@3.0.0 db reset     # rebuild from migrations (+ the intentionally empty seed.sql)
 npx supabase@3.0.0 test db      # pgTAP: schema, RLS, integrity, non-destructive guarantees
-npx supabase@3.0.0 db lint --level warning
+npx supabase@3.0.0 db lint --schema public --level warning
 bash scripts/db/test-importer.sh   # importer against the real database, with the FAKE fixture
 npx supabase@3.0.0 stop
 ```
