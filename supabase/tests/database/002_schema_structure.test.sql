@@ -80,10 +80,11 @@ select is(
 select ok(exists (select 1 from pg_constraint where conname = 'course_attempt_availability_enable_gate'),
   'enable gate on availability');
 
--- Foreign keys from the curriculum chain restrict deletion (never cascade).
+-- Foreign keys between curriculum tables restrict deletion (never cascade).
 select is(
-  (select count(*)::int from pg_constraint
-    where contype = 'f' and connamespace = 'public'::regnamespace and confdeltype <> 'a' and confdeltype <> 'r'),
+  (select count(*)::int from pg_constraint c
+    where c.contype = 'f' and c.connamespace = 'public'::regnamespace and c.confdeltype not in ('a', 'r')
+      and (select relname from pg_class where oid = c.conrelid) in ('source_references','curriculum_import_batches','courses','syllabus_versions','course_syllabus_versions','exam_attempts','course_attempt_availability','subject_groups','subjects','syllabus_sections','chapters','official_weightages','study_resources')),
   0, 'no curriculum foreign key cascades or nulls on delete');
 
 -- Guard triggers are installed.

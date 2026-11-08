@@ -104,8 +104,9 @@ select is(tests.value_as('authenticated', (select tampered from claims), $$selec
 -- Privilege inventory ------------------------------------------------------------------------------------------------
 select is(
   (select count(*)::int from information_schema.column_privileges
-    where table_schema = 'public' and grantee = 'authenticated' and privilege_type <> 'SELECT'),
-  0, 'no column anywhere is writable by authenticated');
+    where table_schema = 'public' and grantee = 'authenticated' and privilege_type <> 'SELECT'
+      and table_name in ('source_references','curriculum_import_batches','courses','syllabus_versions','course_syllabus_versions','exam_attempts','course_attempt_availability','subject_groups','subjects','syllabus_sections','chapters','official_weightages','study_resources')),
+  0, 'no curriculum column is writable by authenticated');
 select ok(has_function_privilege('authenticated', 'public.csv_is_ready(uuid)', 'execute'),
   'authenticated can call the readiness function');
 select ok(not has_function_privilege('authenticated', 'public.forbid_delete_unless_draft()', 'execute'),

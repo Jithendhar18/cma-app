@@ -1,6 +1,6 @@
 -- M1: default deny. The database must be closed unless a migration explicitly opens something.
 begin;
-select plan(12);
+select plan(15);
 
 -- A brand new object created by the migration role must start with NO access for the API roles.
 create table public.probe_table (id int);
@@ -33,13 +33,34 @@ select is(
     where table_schema = 'public' and grantee = 'anon'),
   0, 'anon holds no table privilege in public');
 
--- authenticated holds only SELECT on tables (no write, truncate, references or trigger).
+-- Nothing grants the dangerous privileges, on any table, to the API roles.
 select is(
   (select count(*)::int from information_schema.role_table_grants
-    where table_schema = 'public' and grantee = 'authenticated' and privilege_type <> 'SELECT'),
-  0, 'authenticated holds only SELECT on public tables');
+    where table_schema = 'public' and grantee in ('anon', 'authenticated') and privilege_type in ('TRUNCATE', 'REFERENCES', 'TRIGGER')),
+  0, 'no API role can TRUNCATE, REFERENCE or add triggers on any public table');
 
--- The only public function the API roles can run is the readiness function.
+-- The shared curriculum is strictly read-only for signed-in users.
+select is(
+  (select count(*)::int from information_schema.role_table_grants
+    where table_schema = 'public' and grantee = 'authenticated' and privilege_type <> 'SELECT'
+      and table_name in ('source_references','curriculum_import_batches','courses','syllabus_versions','course_syllabus_versions','exam_attempts','course_attempt_availability','subject_groups','subjects','syllabus_sections','chapters','official_weightages','study_resources')),
+  0, 'authenticated holds only SELECT on the shared curriculum tables');
+
+-- Personal tables: an exact allow-list. Anything not listed is not granted.
+select is(
+  (select string_agg(table_name || ':' || privs, ' ' order by table_name) from (
+     select table_name, string_agg(privilege_type, ',' order by privilege_type) as privs
+       from information_schema.role_table_grants
+      where table_schema = 'public' and grantee = 'authenticated'
+        and table_name not in ('source_references','curriculum_import_batches','courses','syllabus_versions','course_syllabus_versions','exam_attempts','course_attempt_availability','subject_groups','subjects','syllabus_sections','chapters','official_weightages','study_resources')
+      group by table_name) g),
+  'chapter_progress:DELETE,INSERT,SELECT,UPDATE chapter_stats:SELECT daily_study_minutes:SELECT enrollment_groups:SELECT enrollment_options:SELECT '
+  || 'local_import_runs:INSERT,SELECT mock_tests:DELETE,INSERT,SELECT,UPDATE planner_sessions:DELETE,INSERT,SELECT,UPDATE '
+  || 'practice_records:DELETE,INSERT,SELECT,UPDATE profiles:SELECT revisions:INSERT,SELECT,UPDATE '
+  || 'student_enrollments:SELECT study_sessions:DELETE,INSERT,SELECT,UPDATE user_settings:SELECT',
+  'personal tables and views: exactly the intended table privileges (revisions cannot be deleted; enrolments and profiles are read-only at table level)');
+
+-- Callable functions: the readiness check, the enrolment functions and account deletion. Nothing else.
 select is(
   (select array_agg(p.proname::text order by p.proname)
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -47,8 +68,14 @@ select is(
       and (has_function_privilege('anon', p.oid, 'execute')
         or has_function_privilege('authenticated', p.oid, 'execute')
         or p.proacl is null)),
-  array['csv_is_ready'],
-  'only csv_is_ready is executable by API roles');
+  array['activate_enrollment', 'archive_enrollment', 'change_enrollment_attempt', 'create_enrollment', 'csv_is_ready',
+        'delete_my_account', 'get_my_quota', 'set_enrollment_groups'],
+  'only the readiness check, the enrolment functions, account deletion and the read-only quota view are executable by API roles');
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')),
+  0, 'anon can execute no public function at all');
 
 select * from finish();
 rollback;

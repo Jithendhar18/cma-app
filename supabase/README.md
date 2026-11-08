@@ -16,6 +16,7 @@ npx supabase@3.0.0 db reset     # rebuild from migrations (+ the intentionally e
 npx supabase@3.0.0 test db      # pgTAP: schema, RLS, integrity, non-destructive guarantees
 npx supabase@3.0.0 db lint --schema public --level warning
 bash scripts/db/test-importer.sh   # importer against the real database, with the FAKE fixture
+bash scripts/db/test-committed.sh   # real commits: quota races, enrolment flows (after `test db`; then `db reset`)
 npx supabase@3.0.0 stop
 ```
 

@@ -20,6 +20,10 @@ begin
   perform set_config('request.jwt.claims', p_claims, true);
   perform set_config('role', p_role, true);
   execute p_sql;
+  -- A real request COMMITS, and deferred constraint triggers then run as the API role. A test transaction never
+  -- commits, so flush them here, while the role is still switched, or privilege bugs in them stay invisible.
+  execute 'set constraints all immediate';
+  execute 'set constraints all deferred';
   perform set_config('role', 'postgres', true);
   return 'OK';
 exception when others then
@@ -39,6 +43,8 @@ begin
   perform set_config('request.jwt.claims', p_claims, true);
   perform set_config('role', p_role, true);
   execute p_sql into result;
+  execute 'set constraints all immediate';
+  execute 'set constraints all deferred';
   perform set_config('role', 'postgres', true);
   return result;
 exception when others then
