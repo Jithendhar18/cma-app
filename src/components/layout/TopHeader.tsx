@@ -4,6 +4,7 @@ import { useUiStore } from '@/stores/uiStore';
 import { findNavItem } from '@/app/navigation';
 import { Avatar } from '@/components/layout/Sidebar';
 import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
+import { AccountEntry } from '@/features/auth/AccountEntry';
 import { formatLongDate, todayISO } from '@/lib/dates';
 import { useStudyStore } from '@/stores/studyStore';
 
@@ -39,6 +40,7 @@ export function TopHeader() {
         <div className="hidden md:block">
           <ThemeSwitcher />
         </div>
+        <AccountEntry />
         <Link to="/settings" aria-label={`Settings for ${name}`} className="rounded-full ring-offset-canvas">
           <Avatar name={name} />
         </Link>

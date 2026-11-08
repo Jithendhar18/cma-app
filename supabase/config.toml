@@ -167,7 +167,7 @@ site_url = "http://localhost:5173"
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 # Exact URLs only, never wildcards. The real callback and reset routes are added in M6, when they exist.
-additional_redirect_urls = []
+additional_redirect_urls = ["http://localhost:5173/auth/callback", "http://localhost:5173/auth/reset-password"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.

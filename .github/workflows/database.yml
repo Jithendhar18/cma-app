@@ -128,6 +128,9 @@ jobs:
       - name: Staged publication - Group I first, Group II later (rolled back)
         run: bash scripts/db/test-staged-publication.sh
 
+      - name: Auth integration - real GoTrue, signup trigger and row level security
+        run: bash scripts/db/test-auth-integration.sh
+
       # Needs real commits (deferred triggers, concurrent sessions), which a pgTAP transaction cannot exercise.
       # It runs after `supabase test db`, which installs the shared test helpers, and leaves the fixture committed.
       - name: Committed behaviour - quota races and enrolment flows

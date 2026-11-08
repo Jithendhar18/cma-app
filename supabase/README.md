@@ -18,11 +18,17 @@ npx supabase@3.0.0 db lint --schema public --level warning
 bash scripts/db/test-importer.sh   # importer against the real database, with the FAKE fixture
 bash scripts/db/test-real-bundle.sh   # the REAL CMA Intermediate bundle: drafts import and stay invisible (rolled back)
 bash scripts/db/test-staged-publication.sh   # Group I published first, Group II later, ids unchanged (rolled back)
+bash scripts/db/test-auth-integration.sh   # real GoTrue + signup trigger + PostgREST + RLS, driven by the app's own auth code
 bash scripts/db/test-committed.sh   # real commits: quota races, enrolment flows (after `test db`; then `db reset`)
 npx supabase@3.0.0 stop
 ```
 
 The importer script needs `psql` on the path and refuses to run against anything but `127.0.0.1`/`localhost`.
+
+`test-auth-integration.sh` reads the local API URL and the public anon key from `supabase status` (it never touches a hosted project),
+creates throwaway users on `@example.test`, and deletes them afterwards. The local stack has no mail server, so email delivery and the
+one-time-code exchange from a real link cannot be tested here; they are covered by mocked unit tests and must be rehearsed on the hosted
+project. In `config.toml` the redirect allow-list holds exactly `http://localhost:5173/auth/callback` and `/auth/reset-password`.
 
 ## What is here
 

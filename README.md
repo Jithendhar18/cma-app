@@ -18,7 +18,7 @@ npm run build      # production build to dist/
 
 ## Deploy to Vercel
 
-The repo includes `vercel.json` (Vite framework preset, `dist` output, SPA rewrite so deep links like `/subjects/p6` work on refresh, and long-term caching for hashed assets). No environment variables are needed.
+The repo includes `vercel.json` (Vite framework preset, `dist` output, SPA rewrite so deep links like `/subjects/p6` work on refresh, long-term caching for hashed assets, a Content-Security-Policy and a few security headers). No environment variables are needed: accounts are off by default (see below).
 
 1. Push the repo to GitHub.
 2. In Vercel choose **Add New → Project**, import the repo and keep the detected settings (build `npm run build`, output `dist`).
@@ -27,6 +27,27 @@ The repo includes `vercel.json` (Vite framework preset, `dist` output, SPA rewri
 Or from the CLI: `npx vercel` for a preview, `npx vercel --prod` for production.
 
 Because data is stored in each visitor's browser, every device starts from the demo data. Use Settings → Export and Import to move data between devices.
+
+## Accounts (optional, off by default)
+
+The app is local-first and works with no backend and no environment variables. Account sign-in (email and password, with email
+confirmation and password reset) is built but **switched off**. With it off, the app makes no request to Supabase and does not even
+download the Supabase library.
+
+To try it against the local Supabase stack (Docker required, see `supabase/README.md`):
+
+```bash
+npx supabase@3.0.0 start                       # prints the API URL and the anon key
+cp .env.example .env.local                     # then set the three values below
+#   VITE_SUPABASE_AUTH_ENABLED=true
+#   VITE_SUPABASE_URL=http://127.0.0.1:54321
+#   VITE_SUPABASE_ANON_KEY=<the anon key printed by `supabase start`>
+npm run dev
+```
+
+Every `VITE_` variable is public (it is compiled into the bundle), so never put a secret there; `npm run guard:secrets` enforces that.
+Signing in does **not** sync study data yet: your progress stays in this browser, and nothing is uploaded or deleted by signing in or
+out. The design, security decisions and the hosted-project checklist are in `docs/architecture/m6-auth-review.md`.
 
 ## Stack
 
@@ -125,7 +146,7 @@ Press `Cmd+K` or `Ctrl+K` anywhere for global search across pages, subjects, cha
 ## Known limitations
 
 - Forms use plain controlled inputs with manual validation, not React Hook Form or Zod, to avoid adding dependencies.
-- No backend yet. Supabase is intentionally not installed; the store is structured so it can be added later.
+- Study data is not stored on a server. Account sign-in exists behind a feature flag (off by default) but does not sync anything yet: progress, timer and settings live only in this browser until the sync milestone.
 - History older than the seeded 90 days does not exist until you log your own sessions.
 - Data saved by the previous version keeps its original (unreconciled) demo totals. Use Settings → Reset demo data for a fully consistent sample, or keep your data as it is.
 - Profile photos are resized to 128 px and capped at about 60 KB; very large originals (over 8 MB) are rejected.
