@@ -131,6 +131,12 @@ jobs:
       - name: Auth integration - real GoTrue, signup trigger and row level security
         run: bash scripts/db/test-auth-integration.sh
 
+      - name: Enrolment and sync integration - real PostgREST, RLS and the sync engine (fake fixture, removed afterwards)
+        run: bash scripts/db/test-sync-integration.sh
+
+      - name: Two real browser pages - sign-out in one tab (also proves the test fails without the unbinding protections)
+        run: bash scripts/db/test-two-tab.sh --mutate
+
       # Needs real commits (deferred triggers, concurrent sessions), which a pgTAP transaction cannot exercise.
       # It runs after `supabase test db`, which installs the shared test helpers, and leaves the fixture committed.
       - name: Committed behaviour - quota races and enrolment flows

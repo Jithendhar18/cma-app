@@ -7,6 +7,7 @@ import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
 import { AccountEntry } from '@/features/auth/AccountEntry';
 import { formatLongDate, todayISO } from '@/lib/dates';
 import { useShellIdentity } from '@/features/account/useShellIdentity';
+import { SyncChip } from '@/features/sync/SyncChip';
 
 export function TopHeader() {
   const { pathname } = useLocation();
@@ -41,6 +42,7 @@ export function TopHeader() {
           <ThemeSwitcher />
         </div>
         <AccountEntry />
+        <SyncChip />
         <Link to="/settings" aria-label={`Settings for ${name}`} className="rounded-full ring-offset-canvas">
           <Avatar name={name} />
         </Link>

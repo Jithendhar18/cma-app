@@ -6,6 +6,7 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from './authContext';
 import { useAccountMode } from '@/features/account/accountContext';
+import { useSync } from '@/features/sync/syncContext';
 import { failureMessage } from './errors';
 import { Notice } from './components/Notice';
 
@@ -20,12 +21,24 @@ export default function AccountPage() {
   const mode = useAccountMode();
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const sync = useSync();
+  const [unsaved, setUnsaved] = useState<number | null>(null);
 
   if (state.status !== 'signed-in') return null;
 
-  async function onSignOut() {
+  async function onSignOut(force = false) {
     setSigningOut(true);
     setSignOutError(null);
+    // Changes still waiting to be saved are sent first. If they cannot be, ask before leaving: they stay on this device and resume next time.
+    if (!force && sync.active) {
+      const flushed = await sync.flushAll();
+      if (!flushed.ok) {
+        setUnsaved(flushed.pending);
+        setSigningOut(false);
+        return;
+      }
+    }
+    setUnsaved(null);
     const result = await signOut();
     setSigningOut(false);
     // On success the session change moves the app out of this screen on its own.
@@ -38,10 +51,17 @@ export default function AccountPage() {
     <div className="space-y-6">
       <PageHeader title="Account" subtitle="Your sign-in and profile. Your study data has not moved." />
 
-      <Notice tone="info">
-        <p className="font-medium">Signing in does not sync your progress yet.</p>
-        <p className="mt-1">Your study progress, timer and settings are still stored only on this device, exactly as before. Syncing them to your account arrives in a later update, and nothing is uploaded unless you choose it then.</p>
-      </Notice>
+      {sync.active ? (
+        <Notice tone="info">
+          <p className="font-medium">Your study progress is saved to your account.</p>
+          <p className="mt-1">Changes are kept on this device first and sent to your account as soon as there is a connection. The data on this device from before you signed in is separate and is never uploaded or merged.</p>
+        </Notice>
+      ) : (
+        <Notice tone="info">
+          <p className="font-medium">Signing in does not sync your progress yet.</p>
+          <p className="mt-1">The study progress, timer and settings you already have are stored only on this device, exactly as before, and are never uploaded. Only the study data of your account is saved to your account.</p>
+        </Notice>
+      )}
 
       {mode.available && (
         <Card>
@@ -109,12 +129,19 @@ export default function AccountPage() {
           <CardHeader title="This device" description="What stays where." />
           <ul className="space-y-3 text-[13px] text-ink-2">
             <li className="flex gap-2.5"><HardDrive className="mt-0.5 size-4 shrink-0 text-ink-3" aria-hidden />Your study progress is stored in this browser. Signing out does not delete it.</li>
-            <li className="flex gap-2.5"><CloudOff className="mt-0.5 size-4 shrink-0 text-ink-3" aria-hidden />Cloud sync, course selection and onboarding are coming in later updates.</li>
+            <li className="flex gap-2.5"><CloudOff className="mt-0.5 size-4 shrink-0 text-ink-3" aria-hidden />{sync.active ? 'Your account data is also kept on this device so the app works offline. Signing out does not delete it.' : 'Choose "My account" above to study with your enrolment and save your progress to your account.'}</li>
           </ul>
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button onClick={onSignOut} disabled={signingOut} icon={<LogOut className="size-4" aria-hidden />}>{signingOut ? 'Signing out…' : 'Sign out'}</Button>
+            <Button onClick={() => void onSignOut()} disabled={signingOut} icon={<LogOut className="size-4" aria-hidden />}>{signingOut ? 'Signing out…' : 'Sign out'}</Button>
             <Link to="/" className="text-[13px] font-medium text-violet-500 hover:underline">Back to the app</Link>
           </div>
+          {unsaved !== null && (
+            <Notice tone="error" className="mt-4">
+              <p className="font-medium">{unsaved} change{unsaved === 1 ? ' has' : 's have'} not been saved to your account yet.</p>
+              <p className="mt-1">They stay on this device and will be sent the next time you sign in. Or stay signed in and try again once you are online.</p>
+              <div className="mt-3 flex gap-2"><Button size="sm" onClick={() => setUnsaved(null)}>Stay signed in</Button><Button size="sm" variant="danger" onClick={() => void onSignOut(true)}>Sign out anyway</Button></div>
+            </Notice>
+          )}
           {signOutError && <Notice tone="error" className="mt-4">{signOutError}</Notice>}
         </Card>
       </div>

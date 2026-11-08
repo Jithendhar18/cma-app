@@ -193,7 +193,7 @@ function ExamSection() {
 
   return (
     <Card>
-      <CardHeader title="Examination" description={isAccount ? 'The official exam date appears here once it is announced. You can set your own dates below; they apply to this enrolment.' : 'The exam date below is a placeholder. Set it once ICMAI publishes the official date.'} />
+      <CardHeader title="Examination" description={isAccount ? 'The official exam date appears here once it is announced. You can set your own dates below; they are saved to your account and apply to this enrolment. The official date is never changed.' : 'The exam date below is a placeholder. Set it once ICMAI publishes the official date.'} />
       <form onSubmit={submit} className="space-y-4" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Attempt" htmlFor="ex-attempt"><input id="ex-attempt" disabled className={fieldClass} value={settings.examAttempt} /></Field>
@@ -275,7 +275,7 @@ function DataSection() {
 
   return (
     <Card>
-      <CardHeader title="Data" description={isAccount ? 'Your account data is kept in this browser and, when sync is switched on, in your account.' : 'Everything is stored locally in this browser.'} />
+      <CardHeader title="Data" description={isAccount ? 'Your study records, name, targets, preferences and exam dates are saved to your account. The picture you upload stays on this device.' : 'Everything is stored locally in this browser.'} />
       <div className="flex flex-wrap gap-3">
         <Button icon={<Download className="size-4" />} onClick={exportData}>Export data</Button>
         <Button icon={<Upload className="size-4" />} onClick={() => fileRef.current?.click()} disabled={isAccount}>Import data</Button>
