@@ -65,8 +65,8 @@ jobs:
           found=0
           for dir in supabase/curriculum/bundles/*/; do
             found=1
-            npm run curriculum:validate -- "${dir%/}"
-            npm run curriculum:sql -- "${dir%/}" --out "$RUNNER_TEMP/$(basename "$dir").sql"
+            npm run curriculum:validate -- "${dir%/}" --shared supabase/curriculum/shared
+            npm run curriculum:sql -- "${dir%/}" --shared supabase/curriculum/shared --out "$RUNNER_TEMP/$(basename "$dir").sql"
           done
           if [ "$found" -eq 0 ]; then echo "no real bundle yet (expected until curriculum is verified)"; fi
 
@@ -121,6 +121,12 @@ jobs:
 
       - name: Importer against the real database (fake fixture, rolled back)
         run: bash scripts/db/test-importer.sh
+
+      - name: Real curriculum bundle (draft import, readiness gate, never-downgrade; rolled back)
+        run: bash scripts/db/test-real-bundle.sh
+
+      - name: Staged publication - Group I first, Group II later (rolled back)
+        run: bash scripts/db/test-staged-publication.sh
 
       # Needs real commits (deferred triggers, concurrent sessions), which a pgTAP transaction cannot exercise.
       # It runs after `supabase test db`, which installs the shared test helpers, and leaves the fixture committed.

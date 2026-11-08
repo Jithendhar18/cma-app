@@ -1,8 +1,8 @@
 # Database (Supabase)
 
-Shared curriculum schema, security policies and tests. **Design:** `docs/architecture/`. **Status:** milestones M1
-(foundation) and M2 (shared curriculum) only. There are no student tables yet (M3), and the app does not use this
-database yet.
+Shared curriculum schema, personal student data, security policies, tests and the curriculum bundle. **Design:**
+`docs/architecture/`. **Status:** M1 to M4 are done and the CMA Intermediate bundle (M5) is prepared as DRAFTS awaiting human
+verification. The app does not use this database yet.
 
 Nothing here talks to a hosted project. Everything runs against a throwaway local stack in Docker.
 
@@ -16,6 +16,8 @@ npx supabase@3.0.0 db reset     # rebuild from migrations (+ the intentionally e
 npx supabase@3.0.0 test db      # pgTAP: schema, RLS, integrity, non-destructive guarantees
 npx supabase@3.0.0 db lint --schema public --level warning
 bash scripts/db/test-importer.sh   # importer against the real database, with the FAKE fixture
+bash scripts/db/test-real-bundle.sh   # the REAL CMA Intermediate bundle: drafts import and stay invisible (rolled back)
+bash scripts/db/test-staged-publication.sh   # Group I published first, Group II later, ids unchanged (rolled back)
 bash scripts/db/test-committed.sh   # real commits: quota races, enrolment flows (after `test db`; then `db reset`)
 npx supabase@3.0.0 stop
 ```
@@ -32,6 +34,7 @@ supabase/
     20261108000200_shared_curriculum.sql      13 shared tables, gates, guards (M2)
     20261108000300_shared_curriculum_rls.sql  RLS policies and grants (M2)
   seed.sql                       intentionally EMPTY: no curriculum is ever seeded here
+  curriculum/                    the verified-curriculum JSON bundles and shared sources/attempts (see its README)
   tests/database/                pgTAP tests (run by `supabase test db`)
 scripts/curriculum/              validator, SQL generator, CLI (pure TypeScript, Vitest-tested)
 scripts/db/                      importer integration test against the local database

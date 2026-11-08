@@ -1,0 +1,45 @@
+timetable-dec-2026-inter-final | timetable | - | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/December_2026_Inter_Final_20260813143653.pdf
+sm-p05 | study_material | P5 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/P5_0904_2026.pdf
+sm-p06 | study_material | P6 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/P6_0904_2026.pdf
+sm-p07a | study_material | P7 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/P7A_0904_2026.pdf
+sm-p07b | study_material | P7 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/P7B_0904_2026.pdf
+sm-p08 | study_material | P8 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/P8_0904_2026.pdf
+sm-p09 | study_material | P9 | attempt: none | term not stated | https://dwpivt501gtb6.cloudfront.net/upload/students/P9_0904_2026.pdf
+sm-p10 | study_material | P10 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/P10_0904_2026.pdf
+sm-p11 | study_material | P11 | attempt: none | term not stated | https://dwpivt501gtb6.cloudfront.net/upload/students/P11_0904_2026.pdf
+sm-p12 | study_material | P12 | attempt: none | term not stated | https://dwpivt501gtb6.cloudfront.net/upload/students/P12_0904_2026.pdf
+supp-dec2026-p05 | study_material | P5 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/supplementary/Supplementary_Paper%205%20for%20December%202026%20Term%20of%20Examination%20(1)_20260828145435.pdf
+supp-dec2026-p06 | study_material | P6 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/supplementary/Supplementary_Paper%206%20for%20December%202026%20Term%20of%20Examination_20260828154818.pdf
+supp-dec2026-p07a | study_material | P7 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/supplementary/Supplementary_Paper%207A%20for%20December%202026%20Term%20of%20Examination)_20260828154849.pdf
+supp-dec2026-p07b | study_material | P7 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/supplementary/Supplementary_Paper%207B%20for%20December%202026%20Term%20of%20Examination_20260828154918.pdf
+mqp-dec2026-p06 | model_question_paper | P6 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/MQP/December_2026/Intermediate/bced32c8-eec5-40af-a50b-d27de92338e9_Q_MQP_Paper%206_Syl22_Dec2026_Set1_Uploading.pdf
+mqp-dec2026-p07 | model_question_paper | P7 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/MQP/December_2026/Intermediate/39f98dd8-0007-4f8b-914b-50c97fd976d5_MQP_Paper%207_Syllabus%2022_Dec2026_Set1.pdf
+mqp-dec2026-p08 | model_question_paper | P8 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/MQP/December_2026/Intermediate/fb19a524-665b-44d0-b86f-4dd883bb6061_MQP_Paper%208_Syllabus%2022_Dec2026_Set1.pdf
+mqp-dec2026-p10 | model_question_paper | P10 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/MQP/December_2026/Intermediate/7e45d5f1-18a8-4014-a194-23aad36799fd_MQP%20Set%201%20of%20Paper%2010.pdf
+mqp-dec2026-p11 | model_question_paper | P11 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/MQP/December_2026/Intermediate/9ea1f65b-ca05-41f9-bc0a-2225997f2dd1_MQP_Paper%2011_Syllabus%2022_Dec2026_Set%201.pdf
+mqp-dec2026-p12 | model_question_paper | P12 | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/MQP/December_2026/Intermediate/ccb10d36-bd86-4cd7-963d-d8eda747965b_Q_MQP_Paper%2012_Syl22_Dec2026_Set1_Uploading.pdf
+mcq-p05 | mcq_bank | P5 | attempt: none | term not stated | https://dwpivt501gtb6.cloudfront.net/upload/students/MCQ_Bank_2022/Inter/MCQBank_Paper5.pdf
+mcq-p06 | mcq_bank | P6 | attempt: none | term not stated | https://dwpivt501gtb6.cloudfront.net/upload/students/MCQ_Bank_2022/Inter/Paper6.pdf
+mcq-p07 | mcq_bank | P7 | attempt: none | term not stated | https://dwpivt501gtb6.cloudfront.net/upload/students/MCQ_Bank_2022/Inter/MCQBank_Paper7.pdf
+mcq-p08 | mcq_bank | P8 | attempt: none | term not stated | https://dwpivt501gtb6.cloudfront.net/upload/students/MCQ_Bank_2022/Inter/MCQBank_Paper8.pdf
+mcq-p09 | mcq_bank | P9 | attempt: none | term not stated | https://dwpivt501gtb6.cloudfront.net/upload/students/MCQ_Bank_2022/Inter/Paper9.pdf
+mcq-p10 | mcq_bank | P10 | attempt: none | term not stated | https://dwpivt501gtb6.cloudfront.net/upload/students/MCQ_Bank_2022/Inter/MCQBank_Paper10.pdf
+mcq-p11 | mcq_bank | P11 | attempt: none | term not stated | https://dwpivt501gtb6.cloudfront.net/upload/students/MCQ_Bank_2022/Inter/MCQBank_Paper11.pdf
+mcq-p12 | mcq_bank | P12 | attempt: none | term not stated | https://dwpivt501gtb6.cloudfront.net/upload/students/MCQ_Bank_2022/Inter/MCQBank_Paper12.pdf
+ptp-jun2026-p05-questions | other | P5 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/Paper5.pdf
+ptp-jun2026-p06-questions | other | P6 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/Paper6.pdf
+ptp-jun2026-p07-questions | other | P7 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/Paper7.pdf
+ptp-jun2026-p08-questions | other | P8 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/Paper8.pdf
+ptp-jun2026-p09-questions | other | P9 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/Paper9.pdf
+ptp-jun2026-p10-questions | other | P10 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/Paper10.pdf
+ptp-jun2026-p11-questions | other | P11 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/Paper11.pdf
+ptp-jun2026-p12-questions | other | P12 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/Paper12.pdf
+ptp-jun2026-p05-answers | other | P5 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/PTP_Answer_Paper_5_Syllabus2022_June2026_Set_1.pdf
+ptp-jun2026-p06-answers | other | P6 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/AnswerPaper6.pdf
+ptp-jun2026-p07-answers | other | P7 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/AnswerPaper7.pdf
+ptp-jun2026-p08-answers | other | P8 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/AnswerPaper8.pdf
+ptp-jun2026-p09-answers | other | P9 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/AnswerPaper9.pdf
+ptp-jun2026-p10-answers | other | P10 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/AnswerPaper10.pdf
+ptp-jun2026-p11-answers | other | P11 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/AnswerPaper11.pdf
+ptp-jun2026-p12-answers | other | P12 | attempt: none | june 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Practice-Test-Paper/Syl2022/Inter/PTP_Answer_Paper_12_June2026_Syllabus2022.pdf
+notice-dec2026-clarification-circular | notice | - | attempt: dec-2026 | december 2026 | https://dwpivt501gtb6.cloudfront.net/upload/students/Circulars/Clarification_Dec2026_20260915142245.pdf

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "bundleKey": "cma-intermediate.syllabus-2022",
+  "bundleVersion": "1",
+  "course": {
+    "stableKey": "cma-intermediate",
+    "name": "CMA Intermediate",
+    "levelOrder": 2,
+    "status": "draft",
+    "sourceRef": "icmai-cma-syllabus-2022-full-version",
+    "verifiedAt": null,
+    "verifiedBy": null
+  },
+  "syllabus": {
+    "stableKey": "syllabus-2022",
+    "name": "CMA Syllabus 2022",
+    "effectiveFrom": null,
+    "status": "draft",
+    "sourceRef": "icmai-cma-syllabus-2022-full-version",
+    "verifiedAt": null,
+    "verifiedBy": null
+  },
+  "courseSyllabus": {
+    "status": "draft",
+    "sourceRef": "icmai-cma-syllabus-2022-full-version",
+    "verifiedAt": null,
+    "verifiedBy": null
+  }
+}

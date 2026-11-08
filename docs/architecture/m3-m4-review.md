@@ -173,7 +173,7 @@ imports or far-ahead planning.
 | Committed behaviour (`scripts/db/test-committed.sh`) | passes: 120 racers vs limit 44 give exactly 40 accepted; the last slot has exactly one winner among 16; two-table race with no deadlock; failed bulk insert changes nothing; every enrolment function and `delete_my_account` through real commits; deletion under load; counters consistent |
 | Quota / deletion / date mutations (new) | **26 of 26 caught** (definer removed, quota triggers dropped, counter tables granted, limits raised, `quota_take` exposed, window or skew widened, method check loosened, stale/missing/future checks removed, date bounds dropped or widened) |
 | M3 mutation testing | **44 distinct deliberate breaks of personal-data protections; the final tests catch all 44.** Run in three rounds (52 runs): 29 breaks (27 caught, 2 survived), then 9 (3 caught, 6 survived, 2 of them repeats), then the 14 policy-loosening breaks after the test fix (all caught). Every survivor was a gap in my tests, now closed (section 5). |
-| M1/M2 and M3 mutation sweeps re-run on the final schema | **98 distinct runs, all caught, none survived** (23 M1/M2 + 29 + 9 + 14 M3 runs) |
+| M1/M2 and M3 mutation sweeps re-run on the final schema | **75 runs, all caught, none survived** (23 M1/M2, then 29 + 9 + 14 M3 runs), plus the 26 new quota, deletion and date breaks above |
 | Importer integration test against the real database | passes |
 | Vitest (all) | **303 tests pass** |
 | TypeScript (`src` and `scripts`) | 0 errors |
