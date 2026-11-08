@@ -5,16 +5,19 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from './authContext';
+import { useAccountMode } from '@/features/account/accountContext';
 import { failureMessage } from './errors';
 import { Notice } from './components/Notice';
 
 /**
- * The signed-in account screen. It shows what the account holds and, plainly, what it does NOT do yet: study progress is not
- * synchronised, so a signed-in person is never led to believe their local progress is being saved to the cloud.
+ * The signed-in account screen. It says plainly which data is in use: while an account's own study data is on screen it is saved to the
+ * account; otherwise (local data, or the account is not set up yet) nothing is uploaded, and a signed-in person is never led to believe
+ * their local progress is being saved to the cloud.
  * (This page is only reachable through <RequireAuth>, so a signed-out visitor never sees it.)
  */
 export default function AccountPage() {
   const { state, signOut, reloadAccount } = useAuth();
+  const mode = useAccountMode();
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -39,6 +42,24 @@ export default function AccountPage() {
         <p className="font-medium">Signing in does not sync your progress yet.</p>
         <p className="mt-1">Your study progress, timer and settings are still stored only on this device, exactly as before. Syncing them to your account arrives in a later update, and nothing is uploaded unless you choose it then.</p>
       </Notice>
+
+      {mode.available && (
+        <Card>
+          <CardHeader title="Which study data to use" description="Your account data and the data on this device are kept completely separate. Signing in never copies one into the other." />
+          <div role="radiogroup" aria-label="Study data" className="grid gap-3 sm:grid-cols-2">
+            {([
+              { value: 'account', title: 'My account', text: 'Your enrolment, official curriculum and the progress saved to your account.' },
+              { value: 'local', title: 'This device only', text: 'The study data already on this device, with the sample curriculum, exactly as before.' },
+            ] as const).map((o) => (
+              <button key={o.value} type="button" role="radio" aria-checked={mode.preference === o.value} onClick={() => mode.setPreference(o.value)}
+                className={`rounded-lg border p-3 text-left text-[13px] transition-colors ${mode.preference === o.value ? 'border-violet-500 bg-violet-500/10' : 'hover:border-violet-500/40'}`}>
+                <span className="block font-medium text-ink">{o.title}</span>
+                <span className="mt-0.5 block text-[12px] text-ink-3">{o.text}</span>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

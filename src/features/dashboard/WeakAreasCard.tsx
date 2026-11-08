@@ -4,16 +4,17 @@ import { ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { CONFIDENCE_LABELS, weakAreas, weakSubjects } from '@/lib/analytics';
 import { formatPercent } from '@/lib/format';
 import { useStudyStore } from '@/stores/studyStore';
 
 export function WeakAreasCard() {
+  const { subjects: curriculumSubjects } = useCurriculum();
   const chapters = useStudyStore((s) => s.chapters);
   const revisions = useStudyStore((s) => s.revisions);
-  const areas = useMemo(() => weakAreas(chapters, SUBJECTS, 4), [chapters]);
-  const subjects = useMemo(() => weakSubjects(SUBJECTS, chapters, revisions).slice(0, 3), [chapters, revisions]);
+  const areas = useMemo(() => weakAreas(chapters, curriculumSubjects, 4), [chapters, curriculumSubjects]);
+  const subjects = useMemo(() => weakSubjects(curriculumSubjects, chapters, revisions).slice(0, 3), [chapters, revisions, curriculumSubjects]);
 
   return (
     <Card>
@@ -25,7 +26,7 @@ export function WeakAreasCard() {
           {subjects.length > 0 && (
             <div className="mb-4 flex flex-wrap gap-2">
               {subjects.map((w) => (
-                <Link key={w.subject.id} to={`/subjects/${w.subject.id}`}>
+                <Link key={w.subject.id} to={`/subjects/${w.subject.slug ?? w.subject.id}`}>
                   <Badge tone="red">{w.subject.shortName} · {formatPercent(w.accuracy ?? 0)}</Badge>
                 </Link>
               ))}
@@ -35,7 +36,7 @@ export function WeakAreasCard() {
             {areas.map(({ chapter, subject, accuracy, action }) => (
               <li key={chapter.id}>
                 <div className="flex items-start justify-between gap-3">
-                  <Link to={`/subjects/${subject.id}?tab=chapters&chapter=${chapter.id}`} className="min-w-0 text-[13px] font-medium text-ink hover:underline">
+                  <Link to={`/subjects/${subject.slug ?? subject.id}?tab=chapters&chapter=${chapter.id}`} className="min-w-0 text-[13px] font-medium text-ink hover:underline">
                     <span className="block truncate">{chapter.title}</span>
                   </Link>
                   <span className="shrink-0 text-[12px] text-ink-2">

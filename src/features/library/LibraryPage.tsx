@@ -8,14 +8,15 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Tabs } from '@/components/ui/Tabs';
 import { fieldClass } from '@/components/ui/field';
-import { demoLibraryAdapter, flattenDocuments } from '@/data/library';
-import { SUBJECTS } from '@/data/subjects';
+import { flattenDocuments } from '@/data/library';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { cn } from '@/lib/cn';
 import type { LibraryNode, LibrarySource } from '@/types/library';
 
 type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; sources: LibrarySource[] };
 
 export default function LibraryPage() {
+  const { subjects: curriculumSubjects, library: adapter } = useCurriculum();
   const [params, setParams] = useSearchParams();
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [nodeId, setNodeId] = useState<string | null>(null);
@@ -25,11 +26,11 @@ export default function LibraryPage() {
 
   const fetchSources = useCallback(() => {
     setLoad({ state: 'loading' });
-    demoLibraryAdapter
+    adapter
       .load()
       .then((sources) => setLoad({ state: 'ready', sources }))
       .catch((e: unknown) => setLoad({ state: 'error', message: e instanceof Error ? e.message : 'Could not load the library.' }));
-  }, []);
+  }, [adapter]);
   useEffect(fetchSources, [fetchSources]);
 
   const sources = load.state === 'ready' ? load.sources : [];
@@ -100,7 +101,7 @@ export default function LibraryPage() {
                 </div>
                 <select aria-label="Filter by paper" className={`${fieldClass} sm:!w-48`} value={subject} onChange={(e) => setSubject(e.target.value)}>
                   <option value="all">All papers</option>
-                  {subjectsInPool.map((id) => <option key={id} value={id}>Paper {SUBJECTS.find((s) => s.id === id)?.paperNumber}</option>)}
+                  {subjectsInPool.map((id) => <option key={id} value={id}>Paper {curriculumSubjects.find((s) => s.id === id)?.paperNumber}</option>)}
                 </select>
                 {years.length > 0 && (
                   <select aria-label="Filter by year" className={`${fieldClass} sm:!w-32`} value={year} onChange={(e) => setYear(e.target.value)}>

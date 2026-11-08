@@ -5,14 +5,13 @@ import { NAV_ITEMS, NAV_SECTIONS, type NavItem } from '@/app/navigation';
 import { ExamCountdownWidget } from '@/components/layout/ExamCountdownWidget';
 import { cn } from '@/lib/cn';
 import { useUiStore } from '@/stores/uiStore';
-import { useStudyStore } from '@/stores/studyStore';
+import { useShellIdentity } from '@/features/account/useShellIdentity';
 import { Button } from '@/components/ui/Button';
 
 export function Sidebar() {
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
   const toggle = useUiStore((state) => state.toggleSidebar);
-  const name = useStudyStore((state) => state.settings.name);
-  const course = useStudyStore((state) => state.settings.course);
+  const { name, course } = useShellIdentity();
 
   return (
     <aside

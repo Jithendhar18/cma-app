@@ -6,12 +6,12 @@ import { Avatar } from '@/components/layout/Sidebar';
 import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
 import { AccountEntry } from '@/features/auth/AccountEntry';
 import { formatLongDate, todayISO } from '@/lib/dates';
-import { useStudyStore } from '@/stores/studyStore';
+import { useShellIdentity } from '@/features/account/useShellIdentity';
 
 export function TopHeader() {
   const { pathname } = useLocation();
   const item = findNavItem(pathname);
-  const name = useStudyStore((state) => state.settings.name);
+  const { name } = useShellIdentity();
   const openPalette = useUiStore((state) => state.setPaletteOpen);
   const isSubjectDetail = pathname.startsWith('/subjects/');
 

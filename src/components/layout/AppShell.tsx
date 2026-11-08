@@ -6,6 +6,7 @@ import { MobileNav } from '@/components/layout/MobileNav';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { MiniTimer } from '@/components/layout/MiniTimer';
 import { StorageWarning } from '@/components/layout/StorageWarning';
+import { ModeGate } from '@/features/account/ModeGate';
 import { useThemeSync } from '@/hooks/useThemeSync';
 import { useDayRollover } from '@/hooks/useDayRollover';
 import { useTimerEngine } from '@/hooks/useTimerEngine';
@@ -28,7 +29,9 @@ export function AppShell() {
         <main className={isTimer ? 'flex-1 md:px-8 md:py-8' : 'flex-1 px-4 pb-28 pt-6 md:px-8 md:pb-12 md:pt-8'}>
           <div className="mx-auto w-full max-w-[1240px]">
             <Suspense fallback={<div className="py-24 text-center text-[13px] text-ink-3">Loading…</div>}>
-              <Outlet />
+              <ModeGate>
+                <Outlet />
+              </ModeGate>
             </Suspense>
           </div>
         </main>

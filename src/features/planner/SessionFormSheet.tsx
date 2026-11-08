@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { fieldClass, labelClass } from '@/components/ui/field';
 import { Sheet } from '@/components/ui/Sheet';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { useStudyStore } from '@/stores/studyStore';
 import type { Priority, StudySession } from '@/types/study';
 
@@ -25,6 +25,7 @@ interface Draft {
 }
 
 export function SessionFormSheet({ open, onClose, session, defaultDate }: Props) {
+  const { subjects: curriculumSubjects } = useCurriculum();
   const chapters = useStudyStore((s) => s.chapters);
   const addSession = useStudyStore((s) => s.addSession);
   const updateSession = useStudyStore((s) => s.updateSession);
@@ -34,8 +35,8 @@ export function SessionFormSheet({ open, onClose, session, defaultDate }: Props)
     date: defaultDate,
     startTime: '18:00',
     durationMinutes: '60',
-    subjectId: SUBJECTS[0].id,
-    chapterId: chapters.find((c) => c.subjectId === SUBJECTS[0].id)?.id ?? '',
+    subjectId: curriculumSubjects[0]?.id ?? '',
+    chapterId: chapters.find((c) => c.subjectId === curriculumSubjects[0]?.id)?.id ?? '',
     priority: 'medium',
     notes: '',
   });
@@ -117,7 +118,7 @@ export function SessionFormSheet({ open, onClose, session, defaultDate }: Props)
         <div>
           <label className={labelClass} htmlFor="sf-subject">Subject</label>
           <select id="sf-subject" className={fieldClass} value={draft.subjectId} onChange={(e) => onSubject(e.target.value)}>
-            {SUBJECTS.map((s) => <option key={s.id} value={s.id}>Paper {s.paperNumber} · {s.shortName}</option>)}
+            {curriculumSubjects.map((s) => <option key={s.id} value={s.id}>Paper {s.paperNumber} · {s.shortName}</option>)}
           </select>
         </div>
         <div>

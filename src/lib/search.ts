@@ -1,10 +1,10 @@
 import { NAV_ITEMS } from '@/app/navigation';
-import { SUBJECTS } from '@/data/subjects';
+import { BUNDLED_CURRICULUM } from '@/lib/curriculum/bundled';
 import { flattenDocuments } from '@/data/library';
 import { formatShortDate } from '@/lib/dates';
 import { formatTime12h } from '@/lib/dates';
 import type { LibrarySource } from '@/types/library';
-import type { StudyDataSnapshot } from '@/types/study';
+import type { StudyDataSnapshot, Subject } from '@/types/study';
 
 export type SearchKind = 'Page' | 'Subject' | 'Chapter' | 'Session' | 'Revision' | 'Resource';
 
@@ -16,24 +16,25 @@ export interface SearchItem {
   to: string;
 }
 
-export function buildSearchIndex(data: StudyDataSnapshot, library: LibrarySource[]): SearchItem[] {
-  const subjectName = new Map(SUBJECTS.map((s) => [s.id, s.shortName]));
+export function buildSearchIndex(data: StudyDataSnapshot, library: LibrarySource[], subjects: Subject[] = BUNDLED_CURRICULUM.subjects): SearchItem[] {
+  const subjectName = new Map(subjects.map((s) => [s.id, s.shortName]));
+  const subjectSlug = new Map(subjects.map((s) => [s.id, s.slug ?? s.id]));
   const chapterById = new Map(data.chapters.map((c) => [c.id, c]));
 
   const pages = NAV_ITEMS.map<SearchItem>((n) => ({ id: `page-${n.path}`, kind: 'Page', title: n.label, subtitle: n.section, to: n.path }));
-  const subjects = SUBJECTS.map<SearchItem>((s) => ({
+  const subjectItems = subjects.map<SearchItem>((s) => ({
     id: `subject-${s.id}`,
     kind: 'Subject',
     title: `Paper ${s.paperNumber} — ${s.name}`,
     subtitle: s.group,
-    to: `/subjects/${s.id}`,
+    to: `/subjects/${s.slug ?? s.id}`,
   }));
   const chapters = data.chapters.map<SearchItem>((c) => ({
     id: `chapter-${c.id}`,
     kind: 'Chapter',
     title: c.title,
     subtitle: subjectName.get(c.subjectId) ?? '',
-    to: `/subjects/${c.subjectId}?tab=chapters&chapter=${c.id}`,
+    to: `/subjects/${subjectSlug.get(c.subjectId) ?? c.subjectId}?tab=chapters&chapter=${c.id}`,
   }));
   const sessions = data.sessions.map<SearchItem>((s) => ({
     id: `session-${s.id}`,
@@ -60,7 +61,7 @@ export function buildSearchIndex(data: StudyDataSnapshot, library: LibrarySource
       to: `/library?source=${source.id}&q=${encodeURIComponent(doc.title)}`,
     })),
   );
-  return [...pages, ...subjects, ...chapters, ...sessions, ...revisions, ...resources];
+  return [...pages, ...subjectItems, ...chapters, ...sessions, ...revisions, ...resources];
 }
 
 export function searchItems(items: SearchItem[], query: string, limit = 30): SearchItem[] {

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { SUBJECTS } from '@/data/subjects';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 import { buildStudyLog } from '@/lib/analytics';
 import { todayISO } from '@/lib/dates';
 import { useStudyStore } from '@/stores/studyStore';
@@ -14,7 +14,11 @@ export function useToday() {
   return todayISO();
 }
 
-export const subjectById = new Map(SUBJECTS.map((s) => [s.id, s]));
+/** Subjects of the curriculum in effect, by id. (Replaces the old module-level map built from the bundled sample.) */
+export function useSubjectMap() {
+  const { subjects } = useCurriculum();
+  return useMemo(() => new Map(subjects.map((s) => [s.id, s])), [subjects]);
+}
 
 export function useChapterMap() {
   const chapters = useStudyStore((s) => s.chapters);

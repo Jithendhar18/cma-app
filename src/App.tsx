@@ -1,7 +1,10 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
+import { AccountBinder } from '@/features/account/AccountBinder';
+import { AccountProvider } from '@/features/account/AccountProvider';
 import { AuthProvider } from '@/features/auth/AuthProvider';
+import { CurriculumProvider } from '@/lib/curriculum/CurriculumProvider';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { readAuthConfig } from '@/lib/supabase/config';
 
@@ -33,6 +36,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+      <AccountProvider>
+      <CurriculumProvider>
+      <AccountBinder />
       <Routes>
         {withAuth && (
           <>
@@ -64,6 +70,8 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      </CurriculumProvider>
+      </AccountProvider>
       </AuthProvider>
     </BrowserRouter>
   );

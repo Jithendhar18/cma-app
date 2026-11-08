@@ -1,4 +1,5 @@
 import { SUBJECTS } from '@/data/subjects';
+import type { Subject } from '@/types/study';
 import type { LibraryAdapter, LibraryDocument, LibraryNode, LibrarySource } from '@/types/library';
 
 const MCQ_URL = 'https://icmai.in/ClntStudents/MCQBankPaper/3';
@@ -16,11 +17,11 @@ function doc(partial: Omit<LibraryDocument, 'kind'> & { kind: string }): Library
   return partial;
 }
 
-function buildMcq(): LibrarySource {
-  const nodes: LibraryNode[] = ['Group I', 'Group II'].map((group) => ({
+function buildMcq(subjects: Subject[]): LibrarySource {
+  const nodes: LibraryNode[] = Array.from(new Set(subjects.map((s) => s.group))).map((group) => ({
     id: `mcq-${group}`,
     label: group,
-    children: SUBJECTS.filter((s) => s.group === group).map((subject) => ({
+    children: subjects.filter((s) => s.group === group).map((subject) => ({
       id: `mcq-${subject.id}`,
       label: `Paper ${subject.paperNumber} · ${subject.shortName}`,
       documents: [1, 2, 3].map((n) =>
@@ -44,13 +45,13 @@ function buildMcq(): LibrarySource {
   };
 }
 
-function buildModel(): LibrarySource {
+function buildModel(subjects: Subject[]): LibrarySource {
   return {
     id: 'model',
     label: 'Model Question Papers',
     description: 'Institute model papers by paper.',
     officialUrl: MODEL_URL,
-    nodes: SUBJECTS.map((subject) => ({
+    nodes: subjects.map((subject) => ({
       id: `model-${subject.id}`,
       label: `Paper ${subject.paperNumber} · ${subject.shortName}`,
       documents: [
@@ -61,7 +62,7 @@ function buildModel(): LibrarySource {
   };
 }
 
-function buildPrevious(): LibrarySource {
+function buildPrevious(subjects: Subject[]): LibrarySource {
   const years = Array.from(new Set(SESSIONS.map((s) => s.year)));
   return {
     id: 'previous',
@@ -74,7 +75,7 @@ function buildPrevious(): LibrarySource {
       children: SESSIONS.filter((s) => s.year === year).map((s) => ({
         id: `prev-${s.session}`,
         label: s.session,
-        documents: SUBJECTS.map((subject) =>
+        documents: subjects.map((subject) =>
           doc({
             id: `prev-${s.session}-${subject.id}`,
             title: `${subject.shortName} — ${s.session}`,
@@ -95,15 +96,17 @@ function buildPrevious(): LibrarySource {
  * Demo adapter. It is NOT connected to ICMAI: every entry is generated locally.
  * A real adapter should implement the same `LibraryAdapter` shape.
  */
-export const demoLibraryAdapter: LibraryAdapter = {
+export const createDemoLibraryAdapter = (subjects: Subject[]): LibraryAdapter => ({
   id: 'demo',
   label: 'Demo data',
   isDemo: true,
   load: () =>
     new Promise((resolve) => {
-      window.setTimeout(() => resolve([buildMcq(), buildModel(), buildPrevious()]), 450);
+      window.setTimeout(() => resolve([buildMcq(subjects), buildModel(subjects), buildPrevious(subjects)]), 450);
     }),
-};
+});
+
+export const demoLibraryAdapter: LibraryAdapter = createDemoLibraryAdapter(SUBJECTS);
 
 export function flattenDocuments(nodes: LibraryNode[], trail: string[] = []): Array<{ doc: LibraryDocument; trail: string[] }> {
   return nodes.flatMap((node) => [

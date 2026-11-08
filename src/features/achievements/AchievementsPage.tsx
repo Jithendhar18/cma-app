@@ -10,12 +10,14 @@ import { todayISO } from '@/lib/dates';
 import { formatMinutes } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { useStudyStore } from '@/stores/studyStore';
+import { useCurriculum } from '@/lib/curriculum/curriculumContext';
 
 export default function AchievementsPage() {
   const today = todayISO();
+  const { subjects } = useCurriculum();
   const studyLog = useStudyLog();
   const { focusLog, chapters, revisions, practiceLog, settings } = useStudyStore();
-  const progress = useMemo(() => computeProgress({ focusLog, studyLog, chapters, revisions, practiceLog, today }), [focusLog, studyLog, chapters, revisions, practiceLog, today]);
+  const progress = useMemo(() => computeProgress({ focusLog, studyLog, chapters, revisions, practiceLog, today, subjects }), [focusLog, studyLog, chapters, revisions, practiceLog, today, subjects]);
 
   const dailyTarget = settings.dailyTargetHours * 60;
   const weeklyTarget = settings.weeklyTargetHours * 60;
