@@ -12,6 +12,7 @@ export interface AccountKeys {
   conflicts: string;
   deadLetter: string;
   mode: string;
+  importJob: string;
 }
 
 const SAFE = /^[A-Za-z0-9-]{1,64}$/;
@@ -27,5 +28,23 @@ export function accountKeys(userId: string): AccountKeys {
     conflicts: `cma-sync-conflicts:${userId}`,
     deadLetter: `cma-sync-deadletter:${userId}`,
     mode: `cma-app-mode:${userId}`,
+    importJob: `cma-import-job:${userId}`,
   };
+}
+
+/**
+ * Removes every browser key that belongs to ONE account (its study mirror, timer, queue, logs, mode choice, import progress, sync lease).
+ * Used only after the server has confirmed that account's deletion. Local-mode keys have no user suffix and are never touched.
+ */
+export function clearAccountKeys(userId: string, storage: Storage = localStorage): string[] {
+  accountKeys(userId); // refuses a malformed id, so a bad value can never widen the match
+  const mine = (k: string) => k.startsWith('cma-') && !(LOCAL_KEYS as readonly string[]).includes(k) && (k.endsWith(`:${userId}`) || k.includes(`:${userId}:`));
+  const removed: string[] = [];
+  try {
+    for (const k of Object.keys(storage)) if (mine(k)) removed.push(k);
+    for (const k of removed) storage.removeItem(k);
+  } catch {
+    /* storage unavailable: nothing to clear */
+  }
+  return removed;
 }

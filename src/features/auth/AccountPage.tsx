@@ -9,6 +9,8 @@ import { useAccountMode } from '@/features/account/accountContext';
 import { useSync } from '@/features/sync/syncContext';
 import { failureMessage } from './errors';
 import { Notice } from './components/Notice';
+import { DeleteAccountCard } from '@/features/portability/DeleteAccountCard';
+import { ExportCard } from '@/features/portability/ExportCard';
 
 /**
  * The signed-in account screen. It says plainly which data is in use: while an account's own study data is on screen it is saved to the
@@ -145,6 +147,22 @@ export default function AccountPage() {
           {signOutError && <Notice tone="error" className="mt-4">{signOutError}</Notice>}
         </Card>
       </div>
+
+      <Card>
+        <CardHeader title="Move local data into your account" description="Optional. Copies your own study records from this device into your account, only when you choose." />
+        <p className="mb-3 text-[13px] text-ink-2">Nothing moves by itself. You match each chapter and review everything first, and the data on this device stays as it is. It needs an enrolment in a verified course.</p>
+        {mode.mode === 'account' && mode.enrollment ? (
+          <Link to="/account/import"><Button>Start the import</Button></Link>
+        ) : (
+          <>
+            <Button disabled aria-describedby="import-why">Start the import</Button>
+            <p id="import-why" className="mt-2 text-[12px] text-ink-3">{mode.mode !== 'account' ? 'You are using the data on this device only. Choose "My account" above first.' : 'Import needs an enrolment in a verified course, and enrolment is not open yet (or you have not chosen a course). It will be available as soon as you are enrolled.'}</p>
+          </>
+        )}
+      </Card>
+
+      <ExportCard />
+      <DeleteAccountCard />
     </div>
   );
 }

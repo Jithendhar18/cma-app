@@ -32,6 +32,14 @@ export interface FakeBackend extends FakeSupabase {
   tick: () => string;
   signInAs: (userId: string, email: string) => Session;
   rows: (table: string) => Row[];
+  /** The password the fake accepts for a fresh sign-in (re-authentication). */
+  password: string;
+  /** When the user last proved their password (ms since epoch), or null. `delete_my_account` requires this to be within 5 minutes. */
+  lastPasswordAuthAt: number | null;
+  /** Users whose accounts were deleted through `delete_my_account`. */
+  deletedUsers: string[];
+  /** Make any insert or upsert that includes a row matching `when` fail as a whole (like a statement that violates a constraint). */
+  rejectRows: (table: string, when: (row: Row) => boolean, error: unknown) => void;
 }
 
 const iso = (n: number) => new Date(Date.UTC(2026, 10, 1) + n * 1000).toISOString();
@@ -53,6 +61,16 @@ export function createFakeBackend(): FakeBackend {
   backend.offline = false;
   backend.tick = () => iso(++clock);
   backend.rows = (t) => (tables[t] ??= []);
+  backend.password = 'correct horse battery';
+  backend.lastPasswordAuthAt = null;
+  backend.deletedUsers = [];
+  const rowRules: Array<{ table: string; when: (row: Row) => boolean; error: unknown }> = [];
+  backend.rejectRows = (table, when, error) => void rowRules.push({ table, when, error });
+  base.auth.signInWithPassword.mockImplementation((async ({ password }: { email: string; password: string }) => {
+    if (password !== backend.password) return { data: { user: null, session: null }, error: { name: 'AuthApiError', code: 'invalid_credentials', status: 400, message: 'Invalid login credentials' } };
+    backend.lastPasswordAuthAt = Date.now();
+    return { data: { user: null, session: null }, error: null };
+  }) as never);
   backend.failNext = (table, error, times = 1, op) => void failures.push({ table, op, f: { error, remaining: times } });
   backend.signInAs = (userId, email) => {
     const session = makeSession(userId, email);
@@ -91,13 +109,13 @@ export function createFakeBackend(): FakeBackend {
   const visible = (table: string, row: Row) => {
     if (!backend.userId) return false;
     if (table === 'profiles') return row.id === backend.userId;
-    if (table === 'user_settings' || PERSONAL.includes(table) || table === 'student_enrollments' || table === 'enrollment_groups') return row.user_id === backend.userId;
+    if (table === 'user_settings' || table === 'local_import_runs' || PERSONAL.includes(table) || table === 'student_enrollments' || table === 'enrollment_groups') return row.user_id === backend.userId;
     return true; // shared curriculum: visible to any signed-in user (published/retired filtering is done by the query, like the policy)
   };
 
   function from(table: string) {
-    const state: { op: string; filters: Filter[]; orFilter: string | null; patch: Row | null; payload: Row[] | null; opts: Row; order: Array<[string, boolean]>; rangeTo: [number, number] | null; limit: number | null; wantRows: boolean; one: 'none' | 'maybe' | 'single' } =
-      { op: 'select', filters: [], orFilter: null, patch: null, payload: null, opts: {}, order: [], rangeTo: null, limit: null, wantRows: false, one: 'none' };
+    const state: { op: string; filters: Filter[]; orFilter: string | null; patch: Row | null; payload: Row[] | null; opts: Row; order: Array<[string, boolean]>; rangeTo: [number, number] | null; limit: number | null; wantRows: boolean; one: 'none' | 'maybe' | 'single'; cols: string } =
+      { cols: '*', op: 'select', filters: [], orFilter: null, patch: null, payload: null, opts: {}, order: [], rangeTo: null, limit: null, wantRows: false, one: 'none' };
 
     const apply = (): { data: unknown; error: unknown } => {
       const log: FakeBackend['calls'][number] = { table, op: state.op, filters: [...state.filters], rows: state.payload ?? undefined };
@@ -118,11 +136,12 @@ export function createFakeBackend(): FakeBackend {
       };
 
       if (state.op === 'insert' || state.op === 'upsert') {
-        if (!PERSONAL.includes(table)) return { data: null, error: dbError('42501', `permission denied for table ${table}`) };
+        if (!PERSONAL.includes(table) && table !== 'local_import_runs') return { data: null, error: dbError('42501', `permission denied for table ${table}`) };
+        for (const rule of rowRules) if (rule.table === table && (state.payload ?? []).some(rule.when)) return { data: null, error: rule.error };
         const out: Row[] = [];
         for (const raw of state.payload ?? []) {
           if (raw.user_id !== backend.userId) return { data: null, error: dbError('42501', 'new row violates row-level security policy') };
-          const onConflict = String(state.opts.onConflict ?? (table === 'chapter_progress' ? 'enrollment_id,chapter_id' : 'user_id,client_id'));
+          const onConflict = String(state.opts.onConflict ?? (table === 'chapter_progress' ? 'enrollment_id,chapter_id' : table === 'local_import_runs' ? 'user_id,source_sha256' : 'user_id,client_id'));
           const keys = onConflict.split(',');
           const existing = rows.find((r) => keys.every((k) => r[k] === raw[k]));
           if (existing) {
@@ -161,6 +180,11 @@ export function createFakeBackend(): FakeBackend {
         return { data: state.wantRows ? hit : null, error: null };
       }
       // select
+      const project = (r: Row): Row => {
+        if (state.cols.trim() === '*') return { ...r };
+        const wanted = state.cols.split(',').map((c) => c.trim()).filter(Boolean);
+        return Object.fromEntries(wanted.filter((c) => c in r).map((c) => [c, r[c]]));
+      };
       let result = rows.filter(match).map((r) => ({ ...r }));
       for (const [col, asc] of [...state.order].reverse()) {
         result = [...result].sort((a, b) => {
@@ -170,6 +194,7 @@ export function createFakeBackend(): FakeBackend {
       }
       if (state.rangeTo) result = result.slice(state.rangeTo[0], state.rangeTo[1] + 1);
       if (state.limit !== null) result = result.slice(0, state.limit);
+      result = result.map(project);
       if (state.one === 'none') return { data: result, error: null };
       if (result.length > 1) return { data: null, error: dbError('PGRST116', 'multiple rows') };
       if (result.length === 0 && state.one === 'single') return { data: null, error: dbError('PGRST116', 'no rows') };
@@ -177,7 +202,7 @@ export function createFakeBackend(): FakeBackend {
     };
 
     const chain: Record<string, unknown> = {
-      select: () => { state.wantRows = true; return chain; },
+      select: (cols?: string) => { state.wantRows = true; state.cols = cols ?? '*'; return chain; },
       insert: (payload: Row | Row[]) => { state.op = 'insert'; state.payload = Array.isArray(payload) ? payload : [payload]; return chain; },
       upsert: (payload: Row | Row[], opts: Row = {}) => { state.op = 'upsert'; state.payload = Array.isArray(payload) ? payload : [payload]; state.opts = opts; return chain; },
       update: (patch: Row) => { state.op = 'update'; state.patch = patch; return chain; },
@@ -209,6 +234,14 @@ export function createFakeBackend(): FakeBackend {
       const injected = takeFailure(`rpc:${name}`, 'rpc');
       if (injected) return { data: null, error: injected };
       if (!backend.userId) return { data: null, error: { code: '28000', message: 'not signed in' } };
+      if (name === 'delete_my_account') {
+        if (backend.lastPasswordAuthAt === null || Date.now() - backend.lastPasswordAuthAt > 300_000) return { data: null, error: { code: 'P0401', hint: 'REAUTHENTICATE', message: 'recent password authentication is required to delete an account' } };
+        const uid = backend.userId;
+        for (const t of ['chapter_progress', 'planner_sessions', 'study_sessions', 'revisions', 'practice_records', 'mock_tests', 'local_import_runs', 'enrollment_groups', 'student_enrollments', 'user_settings']) tables[t] = (tables[t] ?? []).filter((r) => r.user_id !== uid);
+        tables.profiles = (tables.profiles ?? []).filter((r) => r.id !== uid);
+        backend.deletedUsers.push(String(uid));
+        return { data: null, error: null };
+      }
       const stamp = backend.tick();
       const groupsOf = (csv: string) => optionRows().filter((o) => o.csv_id === csv).flatMap((o) => o.groups as Array<{ id: string }>).map((g) => g.id);
       const own = (id: unknown) => mine().find((e) => e.id === id);

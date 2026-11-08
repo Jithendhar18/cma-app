@@ -29,6 +29,7 @@ const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage
 const ResetPasswordPage = lazy(() => import('@/features/auth/ResetPasswordPage'));
 const AuthCallbackPage = lazy(() => import('@/features/auth/AuthCallbackPage'));
 const AccountPage = lazy(() => import('@/features/auth/AccountPage'));
+const ImportWizardPage = lazy(() => import('@/features/portability/ImportWizardPage'));
 
 const authRoutesEnabled = () => readAuthConfig(import.meta.env).status !== 'disabled';
 
@@ -55,6 +56,7 @@ export default function App() {
           {withAuth && (
             <Route element={<RequireAuth />}>
               <Route path="account" element={<AccountPage />} />
+              <Route path="account/import" element={<Suspense fallback={null}><ImportWizardPage /></Suspense>} />
             </Route>
           )}
           <Route index element={<DashboardPage />} />

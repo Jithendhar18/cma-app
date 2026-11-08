@@ -96,6 +96,7 @@ export type RevisionRow = Owned & Stamps & {
   cancelled_on: string | null; priority: 'high' | 'medium' | 'low';
 };
 export type PracticeRecordRow = Owned & Stamps & { id: string; client_id: string; chapter_id: string; local_date: string; questions: number; correct: number };
+export type LocalImportRunRow = { id: string; user_id: string; enrollment_id: string; source_sha256: string; counts: Record<string, number>; imported_at: string };
 export type MockTestRow = Owned & Stamps & { id: string; client_id: string; subject_id: string; taken_on: string; name: string; score: number; max_score: number };
 
 /** A writable personal table: any subset of columns may be sent; the database fills the rest and enforces every constraint. */
@@ -140,6 +141,7 @@ export interface Database {
       revisions: Writable<RevisionRow>;
       practice_records: Writable<PracticeRecordRow>;
       mock_tests: Writable<MockTestRow>;
+      local_import_runs: Writable<LocalImportRunRow>;
     };
     Views: {
       enrollment_options: { Row: EnrollmentOptionRow; Relationships: [] };
@@ -150,6 +152,7 @@ export interface Database {
       set_enrollment_groups: { Args: { p_enrollment_id: string; p_group_ids: string[] }; Returns: undefined };
       archive_enrollment: { Args: { p_enrollment_id: string }; Returns: undefined };
       activate_enrollment: { Args: { p_enrollment_id: string }; Returns: undefined };
+      delete_my_account: { Args: Record<string, never>; Returns: undefined };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

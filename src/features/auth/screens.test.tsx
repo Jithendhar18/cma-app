@@ -501,16 +501,20 @@ describe('the account screen', () => {
     expect(screen.getByText('Asha')).toBeTruthy();
   });
 
-  it('offers no account deletion, import, upload or sync control (account deletion and import are later milestones)', async () => {
+  it('offers import and deletion only behind explicit steps: no one-click delete, no file upload, no sync button', async () => {
     signedInAs();
     startApp('/account');
     await screen.findByText('Asha');
-    // Controls only. (Since M7 this page also has the "which study data" switch, whose text mentions the enrolment, and enrolment itself is
-    // managed in Settings; so the check is now on what this page still must not offer: deletion, import and upload.)
+    // Since M9 this page has "Start the import", "Download my data" and "Delete my account…". Each must be an entry to a guarded flow:
+    // nothing on the page itself deletes, uploads or syncs.
     const controls = [...document.querySelectorAll('main button, main a')].map((el) => el.textContent ?? '').join(' | ');
-    expect(controls).not.toMatch(/delete|remove (my )?account|import|upload|sync now/i);
+    expect(controls).toMatch(/Start the import/);
+    expect(controls).toMatch(/Delete my account…/);
+    expect(controls).not.toMatch(/Delete my account permanently|sync now|upload/i);
     expect(document.querySelector('main select')).toBeNull();
     expect(document.querySelector('main input[type="file"]')).toBeNull();
+    // the destructive button does not exist until the confirmation dialog is open
+    expect(screen.queryByRole('button', { name: 'Delete my account permanently' })).toBeNull();
   });
 });
 

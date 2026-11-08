@@ -91,8 +91,8 @@ export function seedBackend(b: FakeBackend, o: SeedOptions): void {
     { id: U(961), resource_type: 'notice', title: 'FAKE DRAFT notice (must never appear)', url: 'https://example.invalid/draft', publisher: 'FAKE', is_official: true, csv_id: CSV, subject_id: null, chapter_id: null, exam_attempt_id: null, year: 2026, session: 'december', link_status: 'active', status: 'draft', updated_at: 'x' },
     { id: U(962), resource_type: 'study_material', title: 'FAKE broken link (must never appear)', url: 'https://example.invalid/broken', publisher: 'FAKE', is_official: true, csv_id: CSV, subject_id: null, chapter_id: null, exam_attempt_id: null, year: null, session: null, link_status: 'broken', status: 'published', updated_at: 'x' },
   ];
-  T.profiles = [{ id: o.userId, display_name: o.displayName ?? 'Asha', avatar_data_url: null, time_zone: 'Asia/Kolkata', onboarding_completed_at: null, created_at: 'x', updated_at: 'x' } as Row];
-  T.user_settings = [{ user_id: o.userId, daily_target_hours: 8, weekly_target_hours: 50, study_start_time: '06:00:00', study_end_time: '23:00:00', pomodoro_focus_minutes: 50, short_break_minutes: 10, long_break_minutes: 20, long_break_every: 4, theme: 'dark', created_at: 'x', updated_at: 'x' } as Row];
+  T.profiles = [{ id: o.userId, display_name: o.displayName ?? 'Asha', avatar_data_url: null, time_zone: 'Asia/Kolkata', onboarding_completed_at: null, created_at: '2026-11-01T00:00:00.000Z', updated_at: '2026-11-01T00:00:00.000Z' } as Row];
+  T.user_settings = [{ user_id: o.userId, daily_target_hours: 8, weekly_target_hours: 50, study_start_time: '06:00:00', study_end_time: '23:00:00', pomodoro_focus_minutes: 50, short_break_minutes: 10, long_break_minutes: 20, long_break_every: 4, theme: 'dark', created_at: '2026-11-01T00:00:00.000Z', updated_at: '2026-11-01T00:00:00.000Z' } as Row];
   T.student_enrollments = T.student_enrollments ?? [];
   T.enrollment_groups = T.enrollment_groups ?? [];
 }

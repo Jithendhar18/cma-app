@@ -22,6 +22,11 @@ import type { Database } from '@/lib/supabase/database.types';
 import { SyncEngine } from '@/lib/sync/engine';
 import { SupabasePersonal } from '@/lib/sync/supabasePersonal';
 import type { FocusRecord, StudyDataSnapshot } from '@/types/study';
+import { exportAccountData, serializeExport } from '@/lib/portability/accountExport';
+import { deleteAccount, DELETE_PHRASE } from '@/lib/portability/deleteAccount';
+import { buildImportPlan, fingerprint, NO_EXCLUSIONS } from '@/lib/portability/importPlan';
+import { makeRepo, readRecordedRuns, recordRun, runImport } from '@/lib/portability/importRun';
+import { localIds, localWithOwnData } from '@/test/localFixtures';
 
 const URL = process.env.SUPABASE_URL ?? '';
 const KEY = process.env.SUPABASE_ANON_KEY ?? '';
@@ -46,6 +51,7 @@ const storage = (): Storage => {
   const items = new Map<string, string>();
   return { get length() { return items.size; }, key: (i) => [...items.keys()][i] ?? null, getItem: (k) => items.get(k) ?? null, setItem: (k, v) => void items.set(k, String(v)), removeItem: (k) => void items.delete(k), clear: () => items.clear() };
 };
+const row = (sql: string) => psql(sql);
 const timings: Record<string, number> = {};
 const timed = async <T>(label: string, work: () => Promise<T>): Promise<T> => {
   const t0 = performance.now();
@@ -334,7 +340,6 @@ describe.skipIf(!ENABLED)('M7 enrolment and M8 sync against the real local stack
   describe('name, settings and the student\'s own dates (M8)', () => {
     type Settings = StudyDataSnapshot['settings'];
     const setS = (d: ReturnType<typeof device>, patch: Partial<Settings>) => d.edit((s) => ({ ...s, settings: { ...s.settings, ...patch } }));
-    const row = (sql: string) => psql(sql);
 
     it('19. saves name, every setting and both dates, and another device sees them', async () => {
       const one = device(a, enr, tree);
@@ -431,5 +436,119 @@ describe.skipIf(!ENABLED)('M7 enrolment and M8 sync against the real local stack
       expect(bd.snap.settings.name).not.toBe(mine);
       expect(JSON.stringify(bd.snap.settings)).not.toContain('Theirs');
     });
+  });
+
+  // ---- M9: import, export and deletion --------------------------------------------------------------------------------------------
+  describe('data portability and account management (M9)', () => {
+    const local = localWithOwnData();
+    const ids = localIds(local);
+    const scopeOf = (u: User, e: Enrollment) => ({ userId: u.id, enrollmentId: e.id, csvId: e.csvId });
+    const mappingFor = () => ({ chapters: { [ids.c1]: tree.chapters[2].id, [ids.c2]: tree.chapters[3].id }, subjects: { [ids.subjectId]: tree.subjects[0].id } });
+    const planFor = async (u: User, e: Enrollment) => buildImportPlan({ local, destination: { subjects: tree.subjects, chapters: tree.chapters }, mapping: mappingFor(), excluded: NO_EXCLUSIONS, existing: (await makeRepo(u.client).pullAll(scopeOf(u, e))).rows });
+    const own = (u: User, t: string) => Number(psql(`select count(*) from public.${t} where user_id = '${u.id}' and client_id like '%own-%'`));
+
+    it('24. imports the student\'s own records once, idempotently, and records the import', async () => {
+      const plan = await planFor(a, enr);
+      expect(plan.canImport).toBe(true);
+      const first = await runImport({ plan, scope: scopeOf(a, enr), repo: makeRepo(a.client) });
+      expect(first.state).toBe('complete');
+      expect(own(a, 'study_sessions')).toBe(3);
+      expect(own(a, 'practice_records')).toBe(1);
+      expect(own(a, 'revisions')).toBe(1);
+      expect(own(a, 'mock_tests')).toBe(1);
+      expect(own(a, 'planner_sessions')).toBe(1);
+      expect(psql(`select count(*) from public.study_sessions ss join public.planner_sessions ps on ps.id = ss.planner_session_id where ss.client_id = 'plan-s-own-1' and ps.client_id = 's-own-1'`)).toBe('1');
+      expect(psql(`select count(*) from public.chapter_progress where user_id = '${a.id}' and chapter_id in ('${tree.chapters[2].id}', '${tree.chapters[3].id}') and notes in ('my notes', '')`)).toBe('2');
+      // running the very same writes again (a retry whose answers were lost) adds nothing
+      const again = await runImport({ plan: buildImportPlan({ local, destination: { subjects: tree.subjects, chapters: tree.chapters }, mapping: mappingFor(), excluded: NO_EXCLUSIONS, existing: [] }), scope: scopeOf(a, enr), repo: makeRepo(a.client) });
+      expect(again.state).toBe('complete');
+      expect(own(a, 'study_sessions')).toBe(3);
+      expect(own(a, 'mock_tests')).toBe(1);
+      // the next plan sees everything as already there
+      expect((await planFor(a, enr)).ready).toEqual([]);
+      // the record of the import is unique per approved selection, enforced by the database
+      const print = await fingerprint(plan.payload);
+      expect(await recordRun(a.client, scopeOf(a, enr), print, { study_sessions: 3 })).toBe('recorded');
+      expect(await recordRun(a.client, scopeOf(a, enr), print, { study_sessions: 3 })).toBe('already-recorded');
+      expect((await readRecordedRuns(a.client, a.id)).map((r) => r.sha256)).toEqual([print]);
+      expect(row(`select count(*) from public.local_import_runs where user_id = '${a.id}'`)).toBe('1');
+    });
+
+    it('25. never overwrites an account record that differs, and one refused record does not stop the others', async () => {
+      row(`update public.study_sessions set minutes = 77 where user_id = '${a.id}' and client_id = 'focus-own-1'`);
+      const forced = buildImportPlan({ local, destination: { subjects: tree.subjects, chapters: tree.chapters }, mapping: mappingFor(), excluded: NO_EXCLUSIONS, existing: [] });
+      forced.ready.push({ table: 'practice_records', key: 'bad-own-1', row: { client_id: 'bad-own-1', chapter_id: tree.chapters[0].id, local_date: '2026-11-08', questions: 5, correct: 9 } });
+      forced.ready.push({ table: 'study_sessions', key: 'extra-own-1', row: { client_id: 'extra-own-1', chapter_id: tree.chapters[0].id, local_date: '2026-11-08', minutes: 11, mode: 'pomodoro', notes: '', planner_client_id: null } });
+      const result = await runImport({ plan: forced, scope: scopeOf(a, enr), repo: makeRepo(a.client) });
+      expect(result.state).toBe('partial');
+      expect(result.outcomes.study_sessions.keptAccountVersion).toBe(1);
+      expect(result.failures.map((f) => f.key)).toEqual(['bad-own-1']);
+      expect(row(`select minutes from public.study_sessions where user_id = '${a.id}' and client_id = 'focus-own-1'`)).toBe('77');
+      expect(row(`select count(*) from public.study_sessions where user_id = '${a.id}' and client_id = 'extra-own-1'`)).toBe('1');
+    });
+
+    it('25b. a record that clashes with a different existing record (same revision number for the chapter) is refused, never reported as kept', async () => {
+      const clash = buildImportPlan({ local, destination: { subjects: tree.subjects, chapters: tree.chapters }, mapping: mappingFor(), excluded: NO_EXCLUSIONS, existing: [] });
+      clash.ready = [{ table: 'revisions', key: 'rev-clash-own-1', row: { client_id: 'rev-clash-own-1', chapter_id: tree.chapters[0].id, revision_number: 1, due_date: '2026-11-21', completed_on: null, cancelled_on: null, priority: 'low' } }];
+      const result = await runImport({ plan: clash, scope: scopeOf(a, enr), repo: makeRepo(a.client) });
+      expect(result.state).toBe('partial');
+      expect(result.outcomes.revisions).toMatchObject({ imported: 0, keptAccountVersion: 0, failed: 1 });
+      expect(result.failures[0].detail).toMatch(/clashes/);
+      expect(row(`select count(*) from public.revisions where user_id = '${a.id}' and client_id = 'rev-clash-own-1'`)).toBe('0');
+    });
+
+    it('26. another user cannot import into this user\'s enrolment (row level security)', async () => {
+      const plan = await planFor(a, enr);
+      const forced = buildImportPlan({ local, destination: { subjects: tree.subjects, chapters: tree.chapters }, mapping: mappingFor(), excluded: NO_EXCLUSIONS, existing: [] });
+      void plan;
+      const before = Number(psql(`select count(*) from public.study_sessions`));
+      const result = await runImport({ plan: forced, scope: { userId: b.id, enrollmentId: enr.id, csvId: enr.csvId }, repo: makeRepo(b.client) });
+      expect(result.state).not.toBe('complete');
+      expect(result.outcomes.study_sessions.imported).toBe(0);
+      expect(Number(psql(`select count(*) from public.study_sessions`))).toBe(before);
+      expect(row(`select count(*) from public.study_sessions where user_id = '${b.id}' and client_id like '%own-%'`)).toBe('0');
+    });
+
+    it('27. exports exactly this user\'s data, completely (past the API row cap), without anyone else\'s or any credential', async () => {
+      const doc = await exportAccountData(a.client, a.id);
+      const n = (t: string) => Number(psql(`select count(*) from public.${t} where user_id = '${a.id}'`));
+      expect(doc.counts.study_sessions).toBe(n('study_sessions'));
+      expect(doc.counts.study_sessions).toBeGreaterThan(2500); // scenario 16's bulk rows: more than one API page
+      for (const t of ['chapter_progress', 'planner_sessions', 'revisions', 'practice_records', 'mock_tests'] as const) expect(doc.counts[t]).toBe(n(t));
+      expect(doc.enrollments.length).toBe(n('student_enrollments'));
+      expect(doc.enrollments.map((e) => e.status).sort()).toContain('active');
+      expect(doc.profile?.display_name).toBe(row(`select display_name from public.profiles where id = '${a.id}'`));
+      expect(doc.import_history).toHaveLength(1);
+      const text = serializeExport(doc);
+      expect(text).not.toContain(b.id);
+      expect(text).not.toMatch(new RegExp(['access_token', 'refresh_token', ['service', 'role'].join('_'), 'password'].join('|'), 'i'));
+      expect(new Set(doc.data.study_sessions.map((r) => r.id)).size).toBe(doc.data.study_sessions.length);
+      expect(doc.references.chapters.length).toBeGreaterThan(0);
+      // the other user's export is theirs alone
+      const theirs = await exportAccountData(b.client, b.id);
+      expect(JSON.stringify(theirs)).not.toContain(a.id);
+    }, 60_000);
+
+    it('28. deletes an account only with the right password and a fresh sign-in; the curriculum stays; failed attempts delete nothing', async () => {
+      const c = await newUser('c');
+      const cEnr = await new SupabaseEnrollments(c.client).create({ csvId, attemptId, groupIds: [g1] });
+      const d = device(c, cEnr, tree);
+      await d.engine.hydrate();
+      d.edit((s) => ({ ...s, focusLog: [focusRec('focus-c-1', d.chapter, 30)], settings: { ...s.settings, name: 'To Be Deleted' } }));
+      await d.engine.flush();
+      const mine = () => psql(`select (select count(*) from public.study_sessions where user_id = '${c.id}') || '|' || (select count(*) from public.student_enrollments where user_id = '${c.id}') || '|' || (select count(*) from public.profiles where id = '${c.id}') || '|' || (select count(*) from auth.users where id = '${c.id}')`);
+      expect(mine()).toBe('1|1|1|1');
+      const chaptersBefore = row('select count(*) from public.chapters');
+
+      expect(await deleteAccount(c.client, { email: c.email, password: PASSWORD, phrase: 'nope' })).toMatchObject({ kind: 'failed' });
+      expect(await deleteAccount(c.client, { email: c.email, password: 'definitely the wrong one', phrase: DELETE_PHRASE })).toMatchObject({ kind: 'failed', reason: 'wrong-password' });
+      expect(mine()).toBe('1|1|1|1');
+
+      expect(await deleteAccount(c.client, { email: c.email, password: PASSWORD, phrase: DELETE_PHRASE })).toEqual({ kind: 'deleted' });
+      expect(mine()).toBe('0|0|0|0');
+      expect(row('select count(*) from public.chapters')).toBe(chaptersBefore);
+      // the other accounts are untouched
+      expect(row(`select count(*) from public.profiles where id in ('${a.id}', '${b.id}')`)).toBe('2');
+    }, 60_000);
   });
 });
