@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { ConflictEntry, SyncStatus } from '@/lib/sync/types';
+import type { ConflictEntry, SyncDiagnostics, SyncStatus } from '@/lib/sync/types';
 import type { DeadLetter } from '@/lib/sync/engine';
 
 export interface SyncValue {
@@ -17,6 +17,8 @@ export interface SyncValue {
   discardDeadLetter: (id: string) => void;
   /** The conflict log, set-aside changes and pending changes as plain data, for the student to keep. */
   exportDiagnostics: () => unknown;
+  /** Counts and times for troubleshooting (never study content). */
+  diagnostics: () => SyncDiagnostics | null;
   /** After a session that was paused by an expired login has been renewed. */
   unpause: () => void;
 }
@@ -25,7 +27,7 @@ export const IDLE_STATUS: SyncStatus = { phase: 'idle', pending: 0, deadLettered
 
 export const INACTIVE: SyncValue = {
   active: false, status: IDLE_STATUS, retry: () => undefined, flushAll: async () => ({ ok: true, pending: 0 }), conflicts: [], deadLetters: [],
-  dismissConflict: () => undefined, retryDeadLetter: () => undefined, discardDeadLetter: () => undefined, exportDiagnostics: () => ({}), unpause: () => undefined,
+  dismissConflict: () => undefined, retryDeadLetter: () => undefined, discardDeadLetter: () => undefined, exportDiagnostics: () => ({}), diagnostics: () => null, unpause: () => undefined,
 };
 
 export const SyncContext = createContext<SyncValue>(INACTIVE);

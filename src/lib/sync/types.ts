@@ -85,12 +85,17 @@ export type PullIssue = { table: Table; id: string; problem: string };
 export interface PersonalRepository {
   /** Every row of this enrolment, paged explicitly, malformed rows skipped and reported. */
   pullAll(scope: Scope): Promise<{ rows: ServerEntity[]; issues: PullIssue[] }>;
-  /** Rows changed since `since` (an `updated_at` cursor), oldest first. Cannot see deletions: that is `pullIds`' job. */
-  pullChanges(scope: Scope, since: string): Promise<{ rows: ServerEntity[]; issues: PullIssue[] }>;
+  /**
+   * Rows changed since `since` (an `updated_at` cursor). `known` maps entity ids to the versions already held, so unchanged rows are not
+   * read in full again. Cannot see deletions: that is `pullIds`' job.
+   */
+  pullChanges(scope: Scope, since: string, known?: ReadonlyMap<string, string>): Promise<{ rows: ServerEntity[]; issues: PullIssue[] }>;
   /** The ids that exist on the server now, so rows deleted elsewhere can be noticed. */
   pullIds(scope: Scope): Promise<Array<{ table: Table; key: string; version: string }>>;
   /** Sends ops in the order given. Never throws for a per-op outcome. */
   push(scope: Scope, ops: Op[]): Promise<PushResult[]>;
+  /** How many requests this repository has made so far (diagnostics only). */
+  requestCount?(): number;
 }
 
 export type SyncPhase = 'idle' | 'hydrating' | 'syncing' | 'offline' | 'attention' | 'paused';
@@ -116,4 +121,22 @@ export interface SyncStatus {
   lastSyncedAt: string | null;
   /** Plain-words reason when phase is 'attention' or 'paused'. */
   message: string | null;
+}
+
+/** Lightweight counters for troubleshooting. Counts and times only: never study content, names, tokens or ids. */
+export interface SyncDiagnostics {
+  queued: number;
+  setAside: number;
+  conflictsLogged: number;
+  flushes: number;
+  batches: number;
+  opsSent: number;
+  applied: number;
+  conflictsResolved: number;
+  rejected: number;
+  retried: number;
+  /** Requests made to the data API since this session's engine started (reads and writes). */
+  requests: number;
+  lastBatch: { ops: number; requests: number; ms: number } | null;
+  lastSyncedAt: string | null;
 }

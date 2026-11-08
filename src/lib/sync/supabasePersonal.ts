@@ -10,6 +10,7 @@ interface Result { data: unknown; error: unknown }
 interface Query extends PromiseLike<Result> {
   select(columns?: string): Query;
   insert(values: Row): Query;
+  upsert(values: Row | Row[], options?: { onConflict?: string; ignoreDuplicates?: boolean }): Query;
   update(values: Row): Query;
   delete(): Query;
   eq(column: string, value: unknown): Query;
@@ -102,6 +103,10 @@ function singlePatch(entity: Entity): Row {
   };
 }
 
+/** The largest number of new rows sent in one request. Chosen so a request stays well inside the API's size limits. */
+export const BULK_MAX = 200;
+const isBulkInsert = (op: Op): boolean => op.kind === 'upsert' && op.isNew && !isSingle(op.table);
+
 const pick = (row: Row, cols: string[]): Row => Object.fromEntries(cols.filter((c) => c in row).map((c) => [c, row[c]]));
 const errorOf = (e: unknown) => (e instanceof PagingError ? e.cause : e);
 
@@ -113,15 +118,25 @@ export class SupabasePersonal implements PersonalRepository {
   private readonly db: Loose;
   /** Server uuid of each planned session by its client id, so a focus record can point at it. */
   private readonly plannerServerId = new Map<string, string>();
+  private requests = 0;
 
   constructor(client: AppSupabaseClient) {
     this.db = client as unknown as Loose;
   }
 
-  private async readTable(table: PersonalTable, scope: Scope, since: string | null): Promise<Row[]> {
+  /** Every statement goes through here, so the number of requests a sync made is a measured fact, not an estimate. */
+  private from(table: string): Query {
+    this.requests++;
+    return this.db.from(table);
+  }
+  requestCount(): number {
+    return this.requests;
+  }
+
+  private async readTable(table: PersonalTable, scope: Scope, since: string | null, columns = '*'): Promise<Row[]> {
     try {
       return await fetchAllPages<Row>((from, to) => {
-        let q = this.db.from(table).select('*').eq('enrollment_id', scope.enrollmentId);
+        let q = this.from(table).select(columns).eq('enrollment_id', scope.enrollmentId);
         if (since !== null) q = q.gte('updated_at', since);
         return q.order('updated_at', { ascending: true }).order('id', { ascending: true }).range(from, to) as PromiseLike<{ data: Row[] | null; error: unknown }>;
       });
@@ -130,22 +145,58 @@ export class SupabasePersonal implements PersonalRepository {
     }
   }
 
+  /** Full rows for a known set of ids (in small groups: a long id list in a URL has a size limit). */
+  private async readByIds(table: PersonalTable, scope: Scope, idList: string[]): Promise<Row[]> {
+    const out: Row[] = [];
+    for (let i = 0; i < idList.length; i += 40) {
+      const { data, error } = await this.from(table).select('*').eq('enrollment_id', scope.enrollmentId).in('id', idList.slice(i, i + 40));
+      if (error) throw error;
+      out.push(...((data ?? []) as Row[]));
+    }
+    return out;
+  }
+
   /** The always-present single rows (name, settings, enrolment dates). Not paged: each is one row. */
   private async readSingle(table: SingleTable, scope: Scope, since: string | null): Promise<Row[]> {
-    let q = this.db.from(table).select('*').eq(singleKey(table, scope).col, singleKey(table, scope).val);
+    let q = this.from(table).select('*').eq(singleKey(table, scope).col, singleKey(table, scope).val);
     if (since !== null) q = q.gte('updated_at', since);
     const { data, error } = await q;
     if (error) throw error;
     return Array.isArray(data) ? (data as Row[]) : [];
   }
 
-  private async pull(scope: Scope, since: string | null): Promise<{ rows: ServerEntity[]; issues: PullIssue[] }> {
+  /** Resolves planned-session ids to client ids for focus records that point at sessions this pull did not itself fetch. */
+  private async plannerLinks(scope: Scope, raw: Row[], into: Map<string, string>): Promise<void> {
+    for (const [client, id] of this.plannerServerId) if (!into.has(id)) into.set(id, client);
+    const missing = [...new Set(raw.map((r) => r.planner_session_id).filter((v): v is string => isString(v) && !into.has(v)))];
+    for (let i = 0; i < missing.length; i += 40) {
+      const { data, error } = await this.from('planner_sessions').select('id, client_id').eq('enrollment_id', scope.enrollmentId).in('id', missing.slice(i, i + 40));
+      if (error) throw error;
+      for (const r of (data ?? []) as Row[]) if (isString(r.id) && isString(r.client_id)) { into.set(r.id, r.client_id); this.plannerServerId.set(r.client_id, r.id); }
+    }
+  }
+
+  /**
+   * `since === null` reads everything. Otherwise only what changed: when the caller knows the versions it already holds, the first pass reads
+   * just ids and versions (so an unchanged table costs a small answer, not every row again) and only rows that are new or at a different
+   * version are read in full. The condition for "changed" is still the row's own version, never an assumption.
+   */
+  private async pull(scope: Scope, since: string | null, known?: ReadonlyMap<string, string>): Promise<{ rows: ServerEntity[]; issues: PullIssue[] }> {
     const issues: PullIssue[] = [];
     const rows: ServerEntity[] = [];
     const plannerClientById = new Map<string, string>();
     for (const table of TABLES) {
-      const raw = await this.readTable(table, scope, since);
+      const keyCol = table === 'chapter_progress' ? 'chapter_id' : 'client_id';
+      let raw: Row[];
+      if (since !== null && known) {
+        const light = await this.readTable(table, scope, since, `id, ${keyCol}, updated_at`);
+        const changed = light.filter((r) => !(isString(r[keyCol]) && known.get(entityId(table, r[keyCol] as string)) === r.updated_at)).map((r) => r.id).filter(isString);
+        raw = changed.length === 0 ? [] : await this.readByIds(table, scope, changed);
+      } else {
+        raw = await this.readTable(table, scope, since);
+      }
       if (table === 'planner_sessions') for (const r of raw) if (isString(r.id) && isString(r.client_id)) { plannerClientById.set(r.id, r.client_id); this.plannerServerId.set(r.client_id, r.id); }
+      if (table === 'study_sessions') await this.plannerLinks(scope, raw, plannerClientById);
       for (const r of raw) {
         const parsed = fromWire(table, r, plannerClientById);
         if ('problem' in parsed) issues.push({ table, id: String(r.id ?? '?'), problem: parsed.problem });
@@ -165,14 +216,15 @@ export class SupabasePersonal implements PersonalRepository {
   pullAll(scope: Scope) {
     return this.pull(scope, null);
   }
-  pullChanges(scope: Scope, since: string) {
-    return this.pull(scope, since);
+  pullChanges(scope: Scope, since: string, known?: ReadonlyMap<string, string>) {
+    return this.pull(scope, since, known);
   }
 
   async pullIds(scope: Scope): Promise<Array<{ table: Table; key: string; version: string }>> {
     const out: Array<{ table: Table; key: string; version: string }> = [];
     for (const table of TABLES) {
-      const raw = await this.readTable(table, scope, null);
+      const keyCol = table === 'chapter_progress' ? 'chapter_id' : 'client_id';
+      const raw = await this.readTable(table, scope, null, `id, ${keyCol}, updated_at`); // only what is needed to tell what exists
       for (const r of raw) {
         const key = table === 'chapter_progress' ? r.chapter_id : r.client_id;
         if (isString(key) && isString(r.updated_at)) out.push({ table, key, version: r.updated_at });
@@ -185,19 +237,140 @@ export class SupabasePersonal implements PersonalRepository {
   }
 
   // ---- writes -------------------------------------------------------------------------------------------------------------------
+  /**
+   * Sends the operations in the order given and returns one result per operation, in that order.
+   *
+   * New rows (inserts of records) that sit next to each other in the queue and belong to one table go in ONE request (up to `BULK_MAX`).
+   * Everything else (an edit, a delete, the name, the settings, the dates) keeps its own request, because each of those is conditional on
+   * the version it was based on and must be judged on its own.
+   *
+   * The bulk request is a single database statement, so it succeeds or fails as a whole. That is what makes it safe:
+   *   - it either wrote every row it was given or none of them, so a failure never leaves a half-written batch to untangle;
+   *   - a row that is already there (an earlier attempt whose answer was lost) is skipped by the database (`ON CONFLICT DO NOTHING`) and then
+   *     read back, so it counts as done if identical and as a conflict if different, exactly as a single insert does;
+   *   - if the whole statement is refused because of ONE bad row, the group is split in half and each half retried, down to single rows, so
+   *     the good rows are saved and only the bad row is reported. A single row is sent by the ordinary one-row path, so its outcome is
+   *     exactly what it always was.
+   * A failure that is not about a particular row (offline, signed out, server busy, not allowed) is reported for every row of the group
+   * and nothing was written, so retrying later cannot duplicate anything.
+   */
   async push(scope: Scope, ops: Op[]): Promise<PushResult[]> {
     const results: PushResult[] = [];
     let stop: PushResult['status'] | null = null;
-    for (const op of ops) {
+    const halted = (op: Op): PushResult | null => (stop === 'auth' ? { op, status: 'auth' } : stop === 'retry' ? { op, status: 'retry', reason: 'offline', detail: 'offline' } : null);
+    const note = (r: PushResult) => {
+      if (r.status === 'auth') stop = 'auth';
+      else if (r.status === 'retry' && r.reason === 'offline') stop = 'retry';
+    };
+    let i = 0;
+    while (i < ops.length) {
+      const op = ops[i];
       // After an auth or offline failure the rest would fail the same way: leave them queued, untouched.
-      if (stop === 'auth') { results.push({ op, status: 'auth' }); continue; }
-      if (stop === 'retry') { results.push({ op, status: 'retry', reason: 'offline', detail: 'offline' }); continue; }
+      const hold = halted(op);
+      if (hold) { results.push(hold); i++; continue; }
+      if (isBulkInsert(op)) {
+        let j = i + 1;
+        while (j < ops.length && j - i < BULK_MAX && isBulkInsert(ops[j]) && ops[j].table === op.table) j++;
+        const group = ops.slice(i, j);
+        for (const r of await this.bulkInsert(scope, group)) { results.push(r); note(r); }
+        i = j;
+        continue;
+      }
       const result = await this.pushOne(scope, op);
       results.push(result);
-      if (result.status === 'auth') stop = 'auth';
-      else if (result.status === 'retry' && result.reason === 'offline') stop = 'retry';
+      note(result);
+      i++;
     }
     return results;
+  }
+
+  /** Inserts a run of new rows of one table in as few requests as is safe. Results are in the order of `group`. */
+  private async bulkInsert(scope: Scope, group: Op[]): Promise<PushResult[]> {
+    const table = group[0].table as PersonalTable;
+    if (group.length === 1) return [await this.pushOne(scope, group[0])];
+
+    // A focus record can only be sent once the planned session it credits is on the server (sessions are sent first, so a missing one failed).
+    const links = new Map<string, string | null>();
+    const waiting = new Set<string>();
+    if (table === 'study_sessions') {
+      const wanted = [...new Set(group.map((o) => o.row?.planner_client_id).filter((v): v is string => typeof v === 'string' && !this.plannerServerId.has(v)))];
+      for (let k = 0; k < wanted.length; k += 40) {
+        const { data, error } = await this.from('planner_sessions').select('id, client_id').eq('enrollment_id', scope.enrollmentId).in('client_id', wanted.slice(k, k + 40));
+        if (error) return group.map((o) => this.fail(o, error));
+        for (const r of (data ?? []) as Row[]) if (isString(r.id) && isString(r.client_id)) this.plannerServerId.set(r.client_id, r.id);
+      }
+      for (const o of group) {
+        const link = o.row?.planner_client_id;
+        if (typeof link === 'string') {
+          const id = this.plannerServerId.get(link);
+          if (id) links.set(o.id, id);
+          else waiting.add(o.id);
+        }
+      }
+    }
+    const sendable = group.filter((o) => !waiting.has(o.id));
+    const sent = sendable.length === 0 ? new Map<string, PushResult>() : new Map((await this.insertGroup(scope, table, sendable, links)).map((r) => [r.op.id, r]));
+    return group.map((o) => sent.get(o.id) ?? { op: o, status: 'retry', reason: 'transient', detail: 'waiting for the planned session' });
+  }
+
+  private async insertGroup(scope: Scope, table: PersonalTable, ops: Op[], links: Map<string, string | null>): Promise<PushResult[]> {
+    if (ops.length === 1) return [await this.pushInsert(scope, ops[0])];
+    const rows = ops.map((o) => toWire({ table, key: o.key, row: o.row ?? {} }, scope, links.get(o.id) ?? null));
+    const onConflict = table === 'chapter_progress' ? 'enrollment_id,chapter_id' : 'user_id,client_id';
+    let data: unknown;
+    let error: unknown;
+    try {
+      // only what the reply is used for (which rows went in, their ids and versions), not every column of every row
+      ({ data, error } = await this.from(table).upsert(rows, { onConflict, ignoreDuplicates: true }).select(`id, ${table === 'chapter_progress' ? 'chapter_id' : 'client_id'}, updated_at`));
+    } catch (e) {
+      error = e;
+    }
+    if (!error) return this.reconcileBulk(scope, table, ops, Array.isArray(data) ? (data as Row[]) : []);
+
+    const { kind } = classifyFailure(error);
+    // Not about a particular row: every row of the group gets the same outcome, and nothing was written.
+    // (A permission refusal covers the whole user and enrolment, so splitting could not help.)
+    const code = (error as { code?: string }).code;
+    if ((kind !== 'rejected' && kind !== 'quota') || code === '42501') return ops.map((o) => this.fail(o, error));
+    // The statement was refused (atomically) because of at least one row: find which, without losing the others.
+    const mid = Math.ceil(ops.length / 2);
+    const left = await this.insertGroup(scope, table, ops.slice(0, mid), links);
+    const worst = left.find((r) => r.status === 'auth' || (r.status === 'retry' && r.reason === 'offline'));
+    const right = worst ? ops.slice(mid).map((o) => (worst.status === 'auth' ? ({ op: o, status: 'auth' } as PushResult) : ({ op: o, status: 'retry', reason: 'offline', detail: 'offline' } as PushResult))) : await this.insertGroup(scope, table, ops.slice(mid), links);
+    return [...left, ...right];
+  }
+
+  /** The statement succeeded: rows it returned were inserted; the others were already there, and are read back and compared. */
+  private async reconcileBulk(scope: Scope, table: PersonalTable, ops: Op[], inserted: Row[]): Promise<PushResult[]> {
+    const keyCol = table === 'chapter_progress' ? 'chapter_id' : 'client_id';
+    const byKey = new Map(inserted.filter((r) => isString(r[keyCol])).map((r) => [r[keyCol] as string, r]));
+    const results = new Map<string, PushResult>();
+    const absent: Op[] = [];
+    for (const o of ops) {
+      const r = byKey.get(o.key);
+      if (r && isString(r.id) && isString(r.updated_at)) {
+        if (table === 'planner_sessions') this.plannerServerId.set(o.key, r.id);
+        results.set(o.id, { op: o, status: 'applied', serverId: r.id, version: r.updated_at });
+      } else absent.push(o);
+    }
+    if (absent.length > 0) {
+      const reverse = new Map<string, string>();
+      for (const [client, id] of this.plannerServerId) reverse.set(id, client);
+      const found = new Map<string, ServerEntity>();
+      for (let k = 0; k < absent.length; k += 40) {
+        const { data, error } = await this.from(table).select('*').eq('enrollment_id', scope.enrollmentId).in(keyCol, absent.slice(k, k + 40).map((o) => o.key));
+        if (error) { for (const o of absent) results.set(o.id, this.fail(o, error)); return ops.map((o) => results.get(o.id)!); }
+        for (const r of (data ?? []) as Row[]) {
+          const parsed = fromWire(table, r, reverse);
+          if (!('problem' in parsed)) found.set(parsed.entity.key, { ...parsed.entity, serverId: parsed.serverId, version: parsed.version });
+        }
+      }
+      for (const o of absent) {
+        const server = found.get(o.key) ?? null;
+        results.set(o.id, server && same(server.row, o.row ?? {}) ? { op: o, status: 'applied', serverId: server.serverId, version: server.version } : { op: o, status: 'conflict', server });
+      }
+    }
+    return ops.map((o) => results.get(o.id)!);
   }
 
   private fail(op: Op, error: unknown): PushResult {
@@ -215,7 +388,7 @@ export class SupabasePersonal implements PersonalRepository {
 
   /** The row the server holds for this entity now (or null), with its version. */
   private async fetchServer(scope: Scope, op: Op): Promise<{ server: ServerEntity | null } | { error: unknown }> {
-    const { data, error } = await this.keyFilter(this.db.from(op.table).select('*'), op, scope).maybeSingle();
+    const { data, error } = await this.keyFilter(this.from(op.table).select('*'), op, scope).maybeSingle();
     if (error) return { error };
     if (!data) return { server: null };
     const planner = new Map<string, string>();
@@ -232,7 +405,7 @@ export class SupabasePersonal implements PersonalRepository {
     if (typeof link !== 'string') return { id: null };
     const cached = this.plannerServerId.get(link);
     if (cached) return { id: cached };
-    const { data, error } = await this.db.from('planner_sessions').select('id').eq('enrollment_id', scope.enrollmentId).eq('client_id', link).maybeSingle();
+    const { data, error } = await this.from('planner_sessions').select('id').eq('enrollment_id', scope.enrollmentId).eq('client_id', link).maybeSingle();
     if (error) return { error };
     const id = data && isString((data as Row).id) ? ((data as Row).id as string) : null;
     if (id) this.plannerServerId.set(link, id);
@@ -257,13 +430,13 @@ export class SupabasePersonal implements PersonalRepository {
     if (op.kind === 'delete') return { op, status: 'rejected', detail: 'This record is never deleted.' };
     const entity: Entity = { table, key: op.key, row: op.row ?? {} };
     const { col, val } = singleKey(table, scope);
-    let q = this.db.from(table).update(singlePatch(entity)).eq(col, val);
+    let q = this.from(table).update(singlePatch(entity)).eq(col, val);
     if (op.baseVersion) q = q.eq('updated_at', op.baseVersion);
     const { data, error } = await q.select('*');
     if (error) return this.fail(op, error);
     const hit = Array.isArray(data) ? (data[0] as Row | undefined) : undefined;
     if (hit && isString(hit.updated_at)) return { op, status: 'applied', serverId: String(hit.id ?? hit.user_id), version: hit.updated_at };
-    const { data: now, error: readError } = await this.db.from(table).select('*').eq(col, val).maybeSingle();
+    const { data: now, error: readError } = await this.from(table).select('*').eq(col, val).maybeSingle();
     if (readError) return this.fail(op, readError);
     if (!now) return { op, status: 'conflict', server: null };
     const parsed = fromWire(table, now as Row, new Map());
@@ -278,7 +451,7 @@ export class SupabasePersonal implements PersonalRepository {
     if ('error' in link) return this.fail(op, link.error);
     // A focus record whose planned session is not on the server yet waits for it (the session is sent first, so this means it failed).
     if (op.table === 'study_sessions' && typeof op.row?.planner_client_id === 'string' && link.id === null) return { op, status: 'retry', reason: 'transient', detail: 'waiting for the planned session' };
-    const { data, error } = await this.db.from(op.table).insert(toWire(entity, scope, link.id)).select('*');
+    const { data, error } = await this.from(op.table).insert(toWire(entity, scope, link.id)).select('*');
     if (!error) {
       const row = Array.isArray(data) ? (data[0] as Row | undefined) : undefined;
       if (row && isString(row.id) && isString(row.updated_at)) {
@@ -302,7 +475,7 @@ export class SupabasePersonal implements PersonalRepository {
     const link = await this.resolvePlanner(scope, op);
     if ('error' in link) return this.fail(op, link.error);
     const patch = pick(toWire(entity, scope, link.id), MUTABLE[op.table as PersonalTable]);
-    let q = this.db.from(op.table).update(patch).eq('enrollment_id', scope.enrollmentId);
+    let q = this.from(op.table).update(patch).eq('enrollment_id', scope.enrollmentId);
     q = op.serverId ? q.eq('id', op.serverId) : this.keyFilter(q, op, scope);
     if (op.baseVersion) q = q.eq('updated_at', op.baseVersion);
     const { data, error } = await q.select('*');
@@ -318,7 +491,7 @@ export class SupabasePersonal implements PersonalRepository {
 
   private async pushDelete(scope: Scope, op: Op): Promise<PushResult> {
     if (op.table === 'revisions') return { op, status: 'rejected', detail: 'Revisions are cancelled, never deleted.' };
-    let q = this.db.from(op.table).delete().eq('enrollment_id', scope.enrollmentId);
+    let q = this.from(op.table).delete().eq('enrollment_id', scope.enrollmentId);
     q = op.serverId ? q.eq('id', op.serverId) : this.keyFilter(q, op, scope);
     if (op.baseVersion) q = q.eq('updated_at', op.baseVersion);
     const { data, error } = await q.select('*');

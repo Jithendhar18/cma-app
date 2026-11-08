@@ -117,6 +117,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       retryDeadLetter: (id) => engine.retryDeadLetter(id),
       discardDeadLetter: (id) => engine.discardDeadLetter(id),
       exportDiagnostics: () => engine.exportDiagnostics(),
+      diagnostics: () => engine.getDiagnostics(),
       unpause: () => engine.unpause(),
     };
     // `status` changes whenever conflicts or set-aside changes do, so the lists are re-read with it.

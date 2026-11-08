@@ -51,6 +51,25 @@ export function SyncPanel({ open, onClose }: { open: boolean; onClose: () => voi
       <div className="space-y-5 text-[13px]">
         <p className="text-ink" role="status">{headline}</p>
 
+        {(() => {
+          const d = sync.diagnostics();
+          if (!d) return null;
+          return (
+            <details className="rounded-lg border p-3">
+              <summary className="cursor-pointer font-medium text-ink">Details for troubleshooting</summary>
+              <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[12px]">
+                <dt className="text-ink-3">Waiting to be saved</dt><dd>{d.queued}</dd>
+                <dt className="text-ink-3">Saved this session</dt><dd>{d.applied}</dd>
+                <dt className="text-ink-3">Retried</dt><dd>{d.retried}</dd>
+                <dt className="text-ink-3">Refused</dt><dd>{d.rejected}</dd>
+                <dt className="text-ink-3">Overridden by newer data</dt><dd>{d.conflictsResolved}</dd>
+                <dt className="text-ink-3">Requests this session</dt><dd>{d.requests}</dd>
+                <dt className="text-ink-3">Last batch</dt><dd>{d.lastBatch ? `${d.lastBatch.ops} changes, ${d.lastBatch.requests} request${d.lastBatch.requests === 1 ? '' : 's'}, ${d.lastBatch.ms} ms` : 'none yet'}</dd>
+              </dl>
+            </details>
+          );
+        })()}
+
         {conflicts.length > 0 && (
           <section aria-label="Changes overridden by newer data">
             <h3 className="mb-2 font-semibold text-ink">Overridden by newer data</h3>

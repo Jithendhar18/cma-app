@@ -276,7 +276,7 @@ describe('failures', () => {
     await h.engine.hydrate();
     h.addFocus(focus('bad'));
     h.addFocus(focus('good'));
-    b.failNext('study_sessions', { code: '23514', message: 'check violated' }, 1, 'insert');
+    b.rejectRows('study_sessions', (r) => r.client_id === 'bad', { code: '23514', message: 'check violated' }); // a statement holding this row is refused as a whole
     await h.engine.flush();
     expect(b.rows('study_sessions').map((r) => r.client_id)).toEqual(['good']);
     expect(h.engine.getStatus()).toMatchObject({ phase: 'attention', pending: 0, deadLettered: 1 });

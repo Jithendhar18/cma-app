@@ -129,7 +129,7 @@ describe('failure handling', () => {
     const out = await repo.push(SCOPE, [focus('a'), focus('b'), focus('c')]);
     expect(out.map((r) => r.status)).toEqual(['retry', 'retry', 'retry']);
     expect(out.every((r) => r.status === 'retry' && r.reason === 'offline')).toBe(true);
-    expect(b.calls.filter((c) => c.table === 'study_sessions' && c.op === 'insert')).toHaveLength(1);
+    expect(b.calls.filter((c) => c.table === 'study_sessions' && (c.op === 'insert' || c.op === 'upsert'))).toHaveLength(1); // one request, then it stops
   });
   it('a server error is transient, a constraint violation is rejected, a quota error is rejected with a plain message', async () => {
     b.failNext('study_sessions', { code: '503', status: 503, message: 'upstream' }, 1, 'insert');
@@ -142,7 +142,7 @@ describe('failure handling', () => {
     if (quota.status === 'rejected') expect(quota.detail).toMatch(/limit/);
   });
   it('an expired session stops the batch with "auth" and sends nothing more', async () => {
-    b.failNext('study_sessions', { status: 401, message: 'JWT expired' }, 1, 'insert');
+    b.failNext('study_sessions', { status: 401, message: 'JWT expired' }, 1);
     const out = await repo.push(SCOPE, [focus('a'), focus('b')]);
     expect(out.map((r) => r.status)).toEqual(['auth', 'auth']);
     expect(b.rows('study_sessions')).toEqual([]);

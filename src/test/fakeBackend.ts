@@ -23,7 +23,7 @@ export interface FakeBackend extends FakeSupabase {
   tables: Record<string, Row[]>;
   userId: string | null;
   /** Every operation, in order. */
-  calls: Array<{ table: string; op: string; filters: Array<[string, string, unknown]>; rows?: Row[] }>;
+  calls: Array<{ table: string; op: string; filters: Array<[string, string, unknown]>; rows?: Row[]; cols?: string }>;
   rpcCalls: Array<{ name: string; args: Record<string, unknown> }>;
   /** Make the next `times` operations on `table` (or any table with '*') fail with `error`. `op` narrows to one operation. */
   failNext: (table: string, error: unknown, times?: number, op?: string) => void;
@@ -118,7 +118,7 @@ export function createFakeBackend(): FakeBackend {
       { cols: '*', op: 'select', filters: [], orFilter: null, patch: null, payload: null, opts: {}, order: [], rangeTo: null, limit: null, wantRows: false, one: 'none' };
 
     const apply = (): { data: unknown; error: unknown } => {
-      const log: FakeBackend['calls'][number] = { table, op: state.op, filters: [...state.filters], rows: state.payload ?? undefined };
+      const log: FakeBackend['calls'][number] = { table, op: state.op, filters: [...state.filters], rows: state.payload ?? undefined, cols: state.cols };
       backend.calls.push(log);
       base.tableCalls.push({ table, operation: state.op, filters: state.filters.map(([c, , v]) => [c, v] as [string, unknown]) });
       const injected = takeFailure(table, state.op);

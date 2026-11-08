@@ -52,15 +52,26 @@ const storage = (): Storage => {
   return { get length() { return items.size; }, key: (i) => [...items.keys()][i] ?? null, getItem: (k) => items.get(k) ?? null, setItem: (k, v) => void items.set(k, String(v)), removeItem: (k) => void items.delete(k), clear: () => items.clear() };
 };
 const row = (sql: string) => psql(sql);
-const timings: Record<string, number> = {};
+/** Counts every request to the data API, so a benchmark reports requests as well as time. */
+const net = { requests: 0, bytes: 0 };
+const countingFetch: typeof fetch = async (input, init) => {
+  const counted = String(input instanceof Request ? input.url : input).includes('/rest/v1/');
+  if (counted) net.requests++;
+  const res = await fetch(input, init);
+  if (counted) net.bytes += (await res.clone().arrayBuffer()).byteLength; // response size: what a phone has to download
+  return res;
+};
+const timings: Record<string, { ms: number; requests: number; kb: number }> = {};
 const timed = async <T>(label: string, work: () => Promise<T>): Promise<T> => {
   const t0 = performance.now();
-  try { return await work(); } finally { timings[label] = Math.round(performance.now() - t0); }
+  const r0 = net.requests;
+  const b0 = net.bytes;
+  try { return await work(); } finally { timings[label] = { ms: Math.round(performance.now() - t0), requests: net.requests - r0, kb: Math.round((net.bytes - b0) / 1024) }; }
 };
 
 interface User { id: string; client: AppSupabaseClient; email: string }
 async function newUser(who: string): Promise<User> {
-  const client = createClient<Database>(URL, KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  const client = createClient<Database>(URL, KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: countingFetch } });
   const email = `m8-int-${RUN}-${who}@example.test`;
   const { data, error } = await client.auth.signUp({ email, password: PASSWORD, options: { data: { display_name: `M8 ${who}` } } });
   if (error || !data.user) throw new Error(`could not create the test user: ${error?.message}`);
@@ -311,6 +322,9 @@ describe.skipIf(!ENABLED)('M7 enrolment and M8 sync against the real local stack
       expect(d.snap.focusLog.filter((f) => f.id.startsWith('bulk-'))).toHaveLength(2500);
       await timed('incremental_pull_no_change', () => d.engine.pullChanges());
       await timed('id_reconciliation_2500', () => d.engine.reconcileIds());
+      // the lighter reads: an unchanged pull and the id check download ids and versions, not every row again (about 1.2 MB before)
+      expect(timings.incremental_pull_no_change.kb).toBeLessThan(600);
+      expect(timings.id_reconciliation_2500.kb).toBeLessThan(600);
     }, 60_000);
 
     it('17. sends a large backlog in batches of at most 200 and measures it', async () => {
@@ -321,7 +335,39 @@ describe.skipIf(!ENABLED)('M7 enrolment and M8 sync against the real local stack
       await timed('push_450_ops', () => d.engine.flush());
       expect(psql(`select count(*) from public.study_sessions where user_id = '${a.id}' and client_id like 'backlog-%'`)).toBe('450');
       expect(d.engine.getStatus()).toMatchObject({ pending: 0, phase: 'idle' });
+      expect(timings.push_450_ops.requests).toBeLessThanOrEqual(5); // 450 requests before batching
     }, 60_000);
+
+    it('17b. benchmark: a batch of 200 with one refused record, and the same 450 sent again (a retry)', async () => {
+      const d = device(a, enr, tree);
+      await d.engine.hydrate();
+      const repo = new SupabasePersonal(a.client);
+      const scope = { userId: a.id, enrollmentId: enr.id, csvId };
+      const mk = (id: string, correct = 1): Parameters<typeof repo.push>[1][number] => ({ id: `practice_records:${id}`, kind: 'upsert', table: 'practice_records', key: id, row: { client_id: id, chapter_id: d.chapter.id, local_date: '2026-03-01', questions: 5, correct }, isNew: true, baseVersion: null, serverId: null, queuedAt: '', attempts: 0, notBefore: null, lastError: null });
+      const ops = Array.from({ length: 200 }, (_, i) => mk(`bench-pr-${i}`, i === 117 ? 9 : 1)); // record 117 breaks a database rule
+      const results = await timed('push_200_one_refused', () => repo.push(scope, ops));
+      expect(results.filter((r) => r.status === 'applied')).toHaveLength(199);
+      expect(results.filter((r) => r.status === 'rejected').map((r) => r.op.key)).toEqual(['bench-pr-117']);
+      expect(psql(`select count(*) from public.practice_records where user_id = '${a.id}' and client_id like 'bench-pr-%'`)).toBe('199');
+      expect(timings.push_200_one_refused.requests).toBeLessThan(40); // 200 requests before
+      // the same 450 backlog records from scenario 17, sent again as a retry whose answers were lost: nothing new may appear
+      const again = Array.from({ length: 450 }, (_, i) => ({ ...mk(`x`), id: `study_sessions:backlog-${i}`, table: 'study_sessions' as const, key: `backlog-${i}`, row: { client_id: `backlog-${i}`, chapter_id: d.chapter.id, local_date: '2026-02-01', minutes: 5, mode: 'pomodoro', notes: '', planner_client_id: null } }));
+      const repeated = await timed('repush_450_already_there', () => repo.push(scope, again));
+      expect(repeated.every((r) => r.status === 'applied')).toBe(true);
+      expect(psql(`select count(*) from public.study_sessions where user_id = '${a.id}' and client_id like 'backlog-%'`)).toBe('450');
+      expect(timings.repush_450_already_there.requests).toBeLessThanOrEqual(20); // 900 requests before
+    }, 60_000);
+
+    it('17c. a batch aimed at another user\'s enrolment is refused as a whole by row level security, in one request, and writes nothing', async () => {
+      const repoB = new SupabasePersonal(b.client);
+      const before = Number(psql('select count(*) from public.study_sessions'));
+      const ops = Array.from({ length: 150 }, (_, i): Parameters<typeof repoB.push>[1][number] => ({ id: `study_sessions:evil-${i}`, kind: 'upsert', table: 'study_sessions', key: `evil-${i}`, row: { client_id: `evil-${i}`, chapter_id: tree.chapters[0].id, local_date: '2026-11-08', minutes: 5, mode: 'pomodoro', notes: '', planner_client_id: null }, isNew: true, baseVersion: null, serverId: null, queuedAt: '', attempts: 0, notBefore: null, lastError: null }));
+      const r0 = repoB.requestCount();
+      const results = await repoB.push({ userId: a.id, enrollmentId: enr.id, csvId }, ops); // scope names user A while signed in as B
+      expect(results.every((r) => r.status === 'rejected')).toBe(true);
+      expect(repoB.requestCount() - r0).toBe(1);
+      expect(Number(psql('select count(*) from public.study_sessions'))).toBe(before);
+    });
 
     it('18. the account\'s quota is enforced by the database and reported as a plain refusal', async () => {
       psqlAdmin(`update public.quota_limits set max_rows = coalesce((select used from public.user_quota_usage where user_id = '${a.id}' and resource = 'mock_tests'), 0) + 1 where resource = 'mock_tests'`);

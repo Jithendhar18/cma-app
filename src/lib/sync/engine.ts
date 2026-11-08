@@ -2,7 +2,7 @@ import { Outbox, type KnownMap } from './outbox';
 import { backoffMs } from './errors';
 import { createExclusive, type Exclusive } from './lock';
 import { entitiesToSnapshot, snapshotToEntities, validateEntity, type BaseForRows } from './mappers';
-import { entityId, isSingle, toMap, type ConflictEntry, type Entity, type EntityMap, type Op, type PersonalRepository, type PushResult, type Scope, type ServerEntity, type SyncPhase, type SyncStatus } from './types';
+import { entityId, isSingle, toMap, type ConflictEntry, type SyncDiagnostics, type Entity, type EntityMap, type Op, type PersonalRepository, type PushResult, type Scope, type ServerEntity, type SyncPhase, type SyncStatus } from './types';
 import type { StudyDataSnapshot } from '@/types/study';
 import { accountKeys } from '@/lib/account/keys';
 
@@ -76,6 +76,7 @@ export class SyncEngine {
   private paused = false;
   private disposed = false;
   private timers: unknown[] = [];
+  private metrics = { flushes: 0, batches: 0, opsSent: 0, applied: 0, conflictsResolved: 0, rejected: 0, retried: 0, lastBatch: null as SyncDiagnostics['lastBatch'] };
   private status$: SyncStatus;
   private listeners = new Set<(s: SyncStatus) => void>();
   readonly sessionKey = `${Date.now()}`;
@@ -177,6 +178,9 @@ export class SyncEngine {
     const atStart = this.entitiesNow();
     try {
       const { rows, issues } = await this.deps.repo.pullAll(this.deps.scope);
+      // The stores may have been unbound (sign-out, another enrolment, local mode) while the request was in flight: what is in them now is
+      // not this account's data, so nothing may be read from them, queued from them or written to them.
+      if (!this.live) return false;
       const server = toMap(rows);
       this.known = new Map(rows.map((r) => [entityId(r.table, r.key), { version: r.version, serverId: r.serverId }]));
       // Anything the student changed while the load was in flight is a pending change on top of the server's data, not something to overwrite.
@@ -264,6 +268,7 @@ export class SyncEngine {
   }
 
   private async flushLocked(): Promise<void> {
+    this.metrics.flushes++;
     this.outbox.reload(); // another tab may have queued changes
     this.capture();
     let refreshedOnce = false;
@@ -276,7 +281,12 @@ export class SyncEngine {
         return;
       }
       this.publish('syncing', null);
+      const r0 = this.deps.repo.requestCount?.() ?? 0;
+      const t0 = performance.now();
       const results = await this.deps.repo.push(this.deps.scope, batch);
+      this.metrics.batches++;
+      this.metrics.opsSent += batch.length;
+      this.metrics.lastBatch = { ops: batch.length, requests: (this.deps.repo.requestCount?.() ?? 0) - r0, ms: Math.round(performance.now() - t0) };
       const outcome = this.settle(results);
       if (outcome === 'auth') {
         if (!refreshedOnce && this.deps.refreshSession && (await this.deps.refreshSession().catch(() => false))) { refreshedOnce = true; continue; }
@@ -296,6 +306,10 @@ export class SyncEngine {
     const overrides = new Map<string, Entity | null>();
     for (const r of results) {
       const { op } = r;
+      if (r.status === 'applied') this.metrics.applied++;
+      else if (r.status === 'conflict') this.metrics.conflictsResolved++;
+      else if (r.status === 'rejected') this.metrics.rejected++;
+      else if (r.status === 'retry') this.metrics.retried++;
       if (r.status === 'applied') {
         this.outbox.remove([op.id]);
         if (op.kind === 'delete') this.known.delete(op.id);
@@ -330,7 +344,7 @@ export class SyncEngine {
         }
       }
     }
-    if (overrides.size > 0) {
+    if (overrides.size > 0 && this.live) {
       // Queue anything the student changed while the request was in flight (measured against what was captured before it), then show the
       // server's copy of each conflicted row. A row the student edited AGAIN meanwhile keeps that newer edit, queued on the server's version.
       const current = this.entitiesNow();
@@ -381,7 +395,7 @@ export class SyncEngine {
     // Queue the student's edits against the versions they were made on BEFORE learning newer ones, so a clash is seen as a clash.
     this.capture();
     try {
-      const { rows } = await this.deps.repo.pullChanges(this.deps.scope, this.cursor);
+      const { rows } = await this.deps.repo.pullChanges(this.deps.scope, this.cursor, new Map([...this.known].map(([id, v]) => [id, v.version])));
       let changed = false;
       for (const r of rows) {
         const id = entityId(r.table, r.key);
@@ -494,6 +508,14 @@ export class SyncEngine {
     this.outbox.put({ ...d.op, attempts: 0, notBefore: null, lastError: null });
     this.discardDeadLetter(id);
   }
+  /** Counts and times for troubleshooting. Nothing in it is study content or personal. */
+  getDiagnostics(): SyncDiagnostics {
+    return {
+      queued: this.outbox.size, setAside: this.deadLetters.length, conflictsLogged: this.conflicts.length, ...this.metrics,
+      requests: this.deps.repo.requestCount?.() ?? 0, lastSyncedAt: this.lastSyncedAt,
+    };
+  }
+
   /** Everything the student might need to recover by hand, as plain data. */
   exportDiagnostics() {
     return { exportedAt: this.now(), conflicts: this.getConflicts(), setAside: this.getDeadLetters().map((d) => ({ at: d.at, table: d.op.table, key: d.op.key, reason: d.reason, row: d.op.row ?? null })), pending: this.outbox.all().map((o) => ({ table: o.table, key: o.key, kind: o.kind, attempts: o.attempts, row: o.row ?? null })) };
