@@ -18,7 +18,7 @@ npm run build      # production build to dist/
 
 ## Deploy to Vercel
 
-The repo includes `vercel.json` (Vite framework preset, `dist` output, SPA rewrite so deep links like `/subjects/p6` work on refresh, long-term caching for hashed assets, a Content-Security-Policy and a few security headers). No environment variables are needed to run the local-mode app: accounts are off by default (see below). **Vercel Preview deployments are local mode only** and must not be given Supabase variables. Enabling accounts on Production is a separate, gated process: `docs/deployment/production-launch-runbook.md`.
+The repo includes `vercel.json` (Vite framework preset, `dist` output, SPA rewrite so deep links like `/subjects/p6` work on refresh, long-term caching for hashed assets, a Content-Security-Policy and a few security headers). No environment variables are needed to run the local-mode app: accounts are off by default (see below). **Vercel Preview deployments are local mode only** and must not be given Supabase variables. Enabling accounts on Production is a separate, gated process: `docs/deployment/production-launch-runbook.md`. Operations: `docs/deployment/production-supabase-recovery.md` (paused or unavailable Supabase, backups) and `docs/deployment/account-export-restoration.md` (what an account export can and cannot restore).
 
 1. Push the repo to GitHub.
 2. In Vercel choose **Add New → Project**, import the repo and keep the detected settings (build `npm run build`, output `dist`).

@@ -11,6 +11,18 @@ disposable.
 
 Reading guide: `[GATE]` marks an approval point. Nothing after a gate is done until the maintainer says so, in writing, for that gate.
 
+**Companion documents (same folder):**
+- `production-supabase-recovery.md`: **the operational reference for Supabase availability incidents** (paused project, outage, Auth or database
+  failure, email, quota limits, key and CSP errors, Vercel failures, sync backlog), with the backup and restore guidance.
+- `account-export-restoration.md`: what an account export contains and why **an account JSON export does not currently provide any automatic
+  restore**.
+
+Four statements that apply throughout:
+- **Account JSON export is not a restore mechanism.** The application can produce the file; nothing reads it back.
+- **Local-mode import is not an account-export restore.** The import wizard reads this browser's local-mode data only, and works through explicit matching.
+- **Backup and restore capabilities must be verified against the actual Production plan** before anyone relies on them; this repository does not assume any.
+- **Production migrations, backups and any recovery action require maintainer approval**, recorded before the action.
+
 ## 0. The rules that never relax
 
 - No service-role key, `sb_secret_` key, database password or Supabase access token in the frontend, the repository, CI or any Vercel variable.
@@ -178,7 +190,8 @@ only. If anything fails, turn the flag back off (section 5.1).
 
 ## 5. Rollback and recovery
 
-None of these procedures resets or overwrites a live database.
+None of these procedures resets or overwrites a live database. For availability incidents (paused project, outage, Auth or database failure, email,
+quota limits, configuration errors, sync backlog) the detailed procedures are in `production-supabase-recovery.md`; this section is the summary.
 
 ### 5.1 Disable account authentication
 Set `VITE_SUPABASE_AUTH_ENABLED=false` in Vercel Production and redeploy (or promote the previous deployment). The app returns to local mode; it makes
@@ -207,13 +220,15 @@ whole project and recreate it; that is the only "reset" and it needs explicit ap
 ### 5.5 Supabase unavailable
 The app keeps working in local mode and, in account mode, from the on-device mirror: changes queue in the persistent outbox and the chip shows
 "Offline (N pending)". Nothing is lost; on reconnect the queue sends itself. If the outage is long, turn the flag off (5.1) so new visits do not
-wait on it. Check the Supabase status page. Do not clear browser storage to "fix" it.
+wait on it. Check the Supabase status page. Do not clear browser storage to "fix" it. Details, including a paused project: `production-supabase-recovery.md`.
 
 ### 5.6 Restore a backup (into a separate recovery environment only)
 Restoring over the live database is **not** part of this runbook. If data must be recovered: create a **new, separate** Supabase project, restore
 the chosen backup into it, verify there (counts, a sample export), and decide with the maintainer what to copy back, using a reviewed plan. Which
 backups exist and for how long depends on the actual plan (section 7); check it in the dashboard before relying on it. A logical dump is also
-possible with `npx supabase@3.0.0 db dump --remote` (needs the link and Docker; read-only).
+possible with `npx supabase@3.0.0 db dump --remote` (needs the link and Docker; read-only). Backups, their verification and restoring into a recovery target
+(a fresh local stack first; a temporary separate project only with approval): `production-supabase-recovery.md` section 8. For one student's own
+export there is no automatic restore: `account-export-restoration.md`.
 
 ### 5.7 Account deletion misbehaves on the hosted token
 If `delete_my_account()` refuses a fresh password sign-in, the access token on the hosted project may not carry the `amr` entry the function reads
@@ -289,8 +304,10 @@ Unknown until the project exists:
 Outstanding work:
 9. **Curriculum verification is not done**, and it is human work. The December 2026 timetable is a hard external date (10 December 2026).
 10. **The CSP edit is not made yet** (needs the real project URL).
-11. Runbooks that do not exist yet: restoring from a student export (the export is a documented JSON file, but no restore tool exists), and handling a
-    paused project, which depends on the plan.
+11. **No restore-from-export tool exists.** The export is a documented JSON file (`account-export-restoration.md`); recovering a student's data from it
+    is a manual, maintainer-approved database operation that has not been written or rehearsed. A paused-project and outage procedure exists
+    (`production-supabase-recovery.md`) but is unrehearsed and its plan-dependent facts are marked for verification. A backup-restore rehearsal into a
+    recovery target is still to be done.
 12. Preview deployments cannot test accounts, by decision.
 
 ## 8. Vercel environment variables (the only three)
@@ -331,7 +348,7 @@ longer exists: email links always return to the page's own origin.
 | 17 | Controlled smoke test with disposable accounts | 4 (Part A) | **G6** |
 | 18 | Signup, confirmation, trigger, login, reset (Part A); enrolment, sync, batching, import, export, conflict recovery, deletion (Part B, after step 23 Stage 2) | 4 | **G8** |
 | 19 | Check the hosted `amr` claim | 4 (Part A, item 6) | |
-| 20 | Confirm backup and recovery readiness for the actual plan | 5.6, 7 | |
+| 20 | Confirm backup and recovery readiness for the actual plan (verify retention, PITR and restore behaviour in the dashboard; take and verify a first backup; rehearse a restore into a recovery target) | 5.6, 7, `production-supabase-recovery.md` section 8 | |
 | 21 | Human curriculum verification | 6 | **G7** |
 | 22 | Import the reviewed curriculum as drafts | 6 | per-step approval |
 | 23 | Staged publication: Group I, availability, then Group II after its own review | 6 | per-stage approval |
@@ -340,3 +357,17 @@ longer exists: email links always return to the page's own origin.
 
 Step 18 is split because enrolment, sync, import and deletion-with-data need published curriculum, and the real curriculum must not be published
 before it is verified (step 21) and never replaced with a fake one in Production.
+
+## 10. Final readiness checklist before opening registration
+
+All must be true, recorded with the date and the person:
+- [ ] Section 2 pre-flight passed on the deployed commit; GitHub Actions green.
+- [ ] Gates G0 to G9 are recorded, and the Part A and Part B smoke tests passed with disposable accounts (disposable accounts then removed).
+- [ ] The CSP contains the exact Production origin (no wildcard) and the header tests pass.
+- [ ] Curriculum: verified by a person, imported as drafts, Group I published and availability enabled; Group II only after its own review.
+- [ ] **Backups verified against the actual plan**: retention, frequency and PITR recorded; a first backup taken; where it is stored; a restore rehearsed into
+      a recovery target (`production-supabase-recovery.md` section 8). No backup is assumed to exist because it should.
+- [ ] The incident procedures are read by the maintainer: `production-supabase-recovery.md` (paused or unavailable Supabase, sync backlog, pausing
+      registration, communication) and `account-export-restoration.md` (an export is not a restore).
+- [ ] The maintainer knows the two levers (pause registration; turn the flag off) and where each is.
+- [ ] Gate G10 approved in writing.

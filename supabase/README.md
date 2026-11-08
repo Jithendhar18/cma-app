@@ -132,7 +132,8 @@ the publication process: `docs/architecture/curriculum-seeding.md` and `supabase
   take the maintainer's explicit approval. After applying: verify the schema, grants, RLS, functions and triggers.
 - The test and fixture scripts are for the local stack only. Never point `supabase test db`, the fixture scripts or the integration scripts at a
   hosted project.
-- Step by step: `docs/deployment/production-launch-runbook.md`.
+- Step by step: `docs/deployment/production-launch-runbook.md`. Incidents (paused or unavailable project, backups and restore): `docs/deployment/production-supabase-recovery.md`. Account
+  exports and why they are not a restore: `docs/deployment/account-export-restoration.md`.
 
 ## Local configuration is not hosted configuration
 
